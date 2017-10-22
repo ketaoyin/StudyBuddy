@@ -19,8 +19,6 @@ router.get('/users', function(req, res) {
 });
 */
 
-
-
 /* GET userinfo page on lookup. */
 router.get('/userinfo', function(req, res) {
     var db = req.db;
@@ -31,37 +29,20 @@ router.get('/userinfo', function(req, res) {
 	});
 
     collection.aggregate([
+    	{
+    	$geoNear: {
+       			near: { type: "Point", coordinates: [ 1 , 1 ] },
+       			distanceField: "dist.calculated",
+        		maxDistance : 1000* 1609,
+        		spherical: true
+        }
+        },
         {
      	$match:{ ClassID : "1"}
         },
         {
      	$match:{ Status : "Active"}
         },
-        {
-        	$out : "firstStage"
-        }
-    ]); 
-
- 	var firstStageTable = db.get('firstStage');
-	var query = {
-    "loc" : {
-        $geoWithin : {
-            $centerSphere : [[1,1],10000/3959]
-        }
-    }
-	};
-
-	// var geofilter = 
-	firstStageTable.find(query, {}).forEach(function(doc) {
-		db.secondStage.insert(doc);
-	});
-
-	// db.createCollection("secondStage",geofilter)
-
-
-	var secondStageTable = db.get('secondStage');
-
-	secondStageTable.aggregate([
         { $lookup:
        {
          from: 'userprofiles',
@@ -74,19 +55,15 @@ router.get('/userinfo', function(req, res) {
      	$unwind : "$info"
      },
      {
-        	$out : "thirdStage"
-        }
+        	$out : "matchResults"
+     }
     ]); 
 
-	var thirdStageTable = db.get('thirdStage');
-
-	thirdStageTable.find({},{},function(e,docs) {
+	db.get("matchResults").find({},{},function(e,docs) {
 	res.render('userlist', {
         "userlist": docs
        });
     });
-
 });
     
-
 module.exports = router;
