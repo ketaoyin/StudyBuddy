@@ -19,22 +19,50 @@ router.get('/users', function(req, res) {
 });
 */
 
+
+
 /* GET userinfo page on lookup. */
 router.get('/userinfo', function(req, res) {
     var db = req.db;
     var collection = db.get('userrequests');
+ 
+    collection.ensureIndex({
+    	loc : "2dsphere"
+	});
+
     collection.aggregate([
-    	{
+        {
      	$match:{ ClassID : "1"}
         },
         {
      	$match:{ Status : "Active"}
         },
-        //geosearch
         {
-     	$match:{ Status : "Active"}
-        },	
-    	 { $lookup:
+        	$out : "firstStage"
+        }
+    ]); 
+
+ 	var firstStageTable = db.get('firstStage');
+	var query = {
+    "loc" : {
+        $geoWithin : {
+            $centerSphere : [[1,1],10000/3959]
+        }
+    }
+	};
+
+	// var geofilter = 
+	firstStageTable.find(query, {}).forEach(function(doc) {
+		db.secondStage.insert(doc);
+	});
+
+	// db.createCollection("secondStage",geofilter)
+
+
+	var secondStageTable = db.get('secondStage');
+
+	secondStageTable.aggregate([
+        { $lookup:
        {
          from: 'userprofiles',
          localField: 'UserID',
@@ -45,14 +73,20 @@ router.get('/userinfo', function(req, res) {
      {
      	$unwind : "$info"
      },
-    ], function(e,docs) {
-        res.render('userlist', {
-            "userlist": docs
-        });
+     {
+        	$out : "thirdStage"
+        }
+    ]); 
+
+	var thirdStageTable = db.get('thirdStage');
+
+	thirdStageTable.find({},{},function(e,docs) {
+	res.render('userlist', {
+        "userlist": docs
+       });
     });
+
 });
-
-
-
+    
 
 module.exports = router;

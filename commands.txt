@@ -1,0 +1,44 @@
+db.userrequests.update({},{$set : {loc : { type : "Point" , coordinates : [0,0] }}},{upsert:false,multi:true})
+
+
+db.userrequests.findOneAndUpdate( {"UserID" : 1}, {$set : {loc : { type : "Point" , coordinates : [1,1] }}},{upsert:false,multi:true})
+
+db.userrequests.update( {"UserID" : "1"}, {$unset : {"LocX" : "","LocY" : ""}})
+
+db.userrequests.update( {"UserID" : "3"}, {$set : {loc : {coordinates : [3,3] }}},{upsert:false,multi:true})
+
+db.userrequests.aggregate([{ $lookup:{          from: 'userprofiles',          localField: 'UserID',          foreignField: 'UserID',          as: 'info'        } },{$unwind: "$info"}]).pretty
+
+profiles = [{ "Username" : "Harrison", "UserID" : "4", "Rating" : "0", "Class" : "BDS", "numRatings" : "0", "Year" : "2016", "Major" : "MSCS" },{ "Username" : "Ketao", "UserID" : "2", "Rating" : "0", "Class" : "BDS", "numRatings" : "0", "Year" : "2017", "Major" : "MSCS" },{ "Username" : "Chris", "UserID" : "3", "Rating" : "0", "Class" : "BDS", "numRatings" : "0", "Year" : "2016", "Major" : "MSCS" }]
+db.usercollection.insert(profiles)
+
+db.usercollection.update( {"_id":"59eb90b9f0e2130e5bf7a65a"}, { $set: { "LocX":"1","LocY":"1","Radius":"2"} } )
+
+db.userrequests.createIndex({loc : "2dsphere"});
+
+query = {
+    "loc" : {
+        $geoWithin : {
+            $centerSphere : [[1,1],1000/3959]
+        }
+    }
+};
+// Step 3: Query points.
+db.landmarks.find(query).pretty();
+
+requests = {
+	"Type" : "User",
+	"UserID" : "4",
+	"Radius" : "2",
+	"Status" : "Active",
+	"ClassID" : "2",
+	"loc" : {
+		"type" : "Point",
+		"coordinates" : [
+			1,
+			1
+		]
+	}
+}
+
+
