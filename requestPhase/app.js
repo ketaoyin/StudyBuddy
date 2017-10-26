@@ -9,7 +9,7 @@ var mongo = require('mongodb');
 var monk = require('monk');
 var db = monk('localhost:27017/requests');
 
-var index = require('./routes/index');
+var index = require('./routes/requests');
 var users = require('./routes/users');
 
 var app = express();
@@ -32,7 +32,7 @@ app.use(function(req,res,next){
     next();
 });
 
-app.use('/', index);
+app.use('/', requests);
 app.use('/users', users);
 
 // catch 404 and forward to error handler

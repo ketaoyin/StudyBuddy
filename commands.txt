@@ -10,6 +10,7 @@ db.userrequests.update( {"UserID" : "3"}, {$set : {loc : {coordinates : [3,3] }}
 db.userrequests.aggregate([{ $lookup:{          from: 'userprofiles',          localField: 'UserID',          foreignField: 'UserID',          as: 'info'        } },{$unwind: "$info"}]).pretty
 
 profiles = [{ "Username" : "Harrison", "UserID" : "4", "Rating" : "0", "Class" : "BDS", "numRatings" : "0", "Year" : "2016", "Major" : "MSCS" },{ "Username" : "Ketao", "UserID" : "2", "Rating" : "0", "Class" : "BDS", "numRatings" : "0", "Year" : "2017", "Major" : "MSCS" },{ "Username" : "Chris", "UserID" : "3", "Rating" : "0", "Class" : "BDS", "numRatings" : "0", "Year" : "2016", "Major" : "MSCS" }]
+
 db.usercollection.insert(profiles)
 
 db.usercollection.update( {"_id":"59eb90b9f0e2130e5bf7a65a"}, { $set: { "LocX":"1","LocY":"1","Radius":"2"} } )
@@ -38,7 +39,9 @@ requests = {
 			1,
 			1
 		]
-	}
+	},
+	"created at" : new Date()
 }
+
 
 
