@@ -2,7 +2,7 @@ extends layout
 
 block content
     h1.
-        User List 
+        Potential List of Buddies
     ul
         each user, i in userlist
-            li #{user.info.UserName} 
+            li #{user.info.Name}, #{user.info.Major} , #{user.info.Year} ,#{user.info.Rating} , Location is  {#{user.loc.coordinates} }

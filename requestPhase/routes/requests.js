@@ -44,7 +44,7 @@ router.get('/userMatches', function(req, res) {
     timeoutId = setTimeout(function() {filterAndMatch(req);}, 5000);
 
     // return list of users that have overlapping ranges
-    db.get("MatchResults").find({"$where" : "this.dist.calculated < parseInt(this.Radius)" },{},
+    db.get("MatchResults").find({"$where" : "this.dist.calculated > parseInt(this.Radius)" },{},
         function(e,docs) {
 
     //check if docs is empty - return no users if so otherwise return list
