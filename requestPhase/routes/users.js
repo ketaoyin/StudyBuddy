@@ -37,11 +37,11 @@ router.post('/createProfile', function(req, res) {
 
     collection.insert(newUser, function(err, result) {
         if (err) {
-            console.log('createProfile: An error has occurred')
-            res.send('An error has occurred');
+            console.log('createProfile: An error has occurred');
+            res.json({'msg' : 'FAILED!'});
         } else {
             console.log('createProfile: Success');
-            res.send('Success');
+            res.json({'msg' : 'Success!'});
         }
     });
 
