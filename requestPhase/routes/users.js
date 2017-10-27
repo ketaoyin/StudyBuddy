@@ -50,30 +50,32 @@ router.post('/createProfile', function(req, res) {
 /* GET user profile information */
 router.get('/userInfo', function(req, res) {
     var db = req.db;
-    var loginUserName = req.params.username;
-    var loginPassword = req.params.password;
+    var query = req.query;
+    var loginUserName = query.username;
+    var loginPassword = query.password;
 
-    console.log(loginUserName);
-    console.log(loginPassword);
-    
+    console.log("Login in user: " + loginUserName);
+
     var collection = db.get('UserProfiles');
 
-    // collection.findOne({'UserName' : loginUserName, 'Password' : loginPassword},{}, function(err, result) {
-    //     if (err) {
-    //         res.json({'error':'an error has occured'});
-    //     } else {
-    //         var userInfo = {
-
-    //         };
-
-    //         res.json(result);
-    //     }
-    // });
-
-    collection.find({},{},function(e,docs){
-        res.json(docs);
+    /*
+        Returns:
+        UserID, Rating, Year, Major, Name
+    */
+    collection.findOne({'UserName' : loginUserName, 'Password' : loginPassword},{}, function(err, result) {
+        if (err) {
+            res.json({'error':'an error has occured'});
+        } else {
+            var userInfo = {
+                "UserID" : result.UserID,
+                "Rating" : result.Rating,
+                "Year" : result.Year,
+                "Major" : result.Major,
+                "Name" : result.Name
+            };
+            res.json(userInfo);
+        }
     });
-
 });
     
 module.exports = router;
