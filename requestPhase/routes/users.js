@@ -23,7 +23,7 @@ router.post('/createProfile', function(req, res) {
     db.collection('UserProfiles', function(err, collection) {
         collection.insert(user, function(err, result) {
             if (err) {
-                res.send({'error':'An error has occurred'});
+                res.send('An error has occurred');
             } else {
                 console.log('Success: ' + JSON.stringify(result[0]));
                 res.send(result[0]);
@@ -40,7 +40,7 @@ router.get('/userInfo', function(req, res) {
 
 
     // collection.findOne({'UserName' : loginUserName, 'Password' : loginPassword}, function(err, result) {
-    db.collection('userprofiles', function(err, collection) {
+    db.collection('UserProfiles', function(err, collection) {
         collection.find(function(err, result) {
             if (err) {
                 res.send({'error':'an error has occured'});

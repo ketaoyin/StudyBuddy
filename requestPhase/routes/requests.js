@@ -22,10 +22,10 @@ router.get('/users', function(req, res) {
 /* GET userinfo page on lookup. */
 router.get('/userinfo', function(req, res) {
     var db = req.db;
-    var collection = db.get('userrequests');
+    var collection = db.get('UserRequests');
  
     collection.createIndex({
-    	loc : "2dsphere"
+    	Loc : "2dsphere"
 	});
 
 	collection.createIndex({created_at: 1}, {expireAfterSeconds: 60});
@@ -45,17 +45,17 @@ router.get('/userinfo', function(req, res) {
 	},
 	"created_at" : new Date(Date.now()) 
 }
-	collection.insert(requests)
+	collection.insert(requests) 
 
     collection.aggregate([
-    	{
+    	/*{
     	$geoNear: {
        			near: { type: "Point", coordinates: [ 1 , 1 ] },
        			distanceField: "dist.calculated",
         		maxDistance : 1000 * 1609,
         		spherical: true
-        }
-        },
+        } 
+        },*/
         {
      	$match:{ ClassID : "1"}
         },
@@ -64,7 +64,7 @@ router.get('/userinfo', function(req, res) {
         },
         { $lookup:
        {
-         from: 'userprofiles',
+         from: 'UserProfiles',
          localField: 'UserID',
          foreignField: 'UserID',
          as: 'info'
@@ -74,11 +74,11 @@ router.get('/userinfo', function(req, res) {
      	$unwind : "$info"
      },
      {
-        	$out : "matchResults"
+        	$out : "MatchResults"
      }
     ]); 
 
-	db.get("matchResults").find({},{},function(e,docs) {
+	db.get("MatchResults").find({},{},function(e,docs) {
 	res.render('userlist', {
         "userlist": docs
        });
