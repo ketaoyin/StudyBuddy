@@ -1,5 +1,6 @@
 var express = require('express');
 var router = express.Router();
+var timeoutID;
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -15,8 +16,12 @@ router.get('/userMatches', function(req, res) {
         loc : "2dsphere"
     });
 
+    // TTL - timeout for each requests in the table
     collection.createIndex({created_at: 1}, {expireAfterSeconds: 60});
-   /* //collection.insert({created_at: new Date(Date.now())}); //- Append this field to userrequests 
+
+    //Extract from incoming requests and add to UserRequests table
+
+   /* collection.insert({created_at: new Date(Date.now())}); //- Append this field to userrequests 
     var requests = {
     "Type" : "User",
     "UserID" : "8",
@@ -34,21 +39,38 @@ router.get('/userMatches', function(req, res) {
 }
     collection.insert(requests) */
 
-    matchAndFilter(req);
-    db.get("MatchResults").find({},{},function(e,docs) {
+
+    //call matchAndFilter after 5 seconds -- use setInterval instead
+    timeoutId = setTimeout(function() {filterAndMatch(req);}, 5000);
+
+    // return list of users that have overlapping ranges
+    db.get("MatchResults").find({"$where" : "this.dist.calculated < parseInt(this.Radius)" },{},
+        function(e,docs) {
+
+    //check if docs is empty - return no users if so otherwise return list
+
     res.render('userlist', {
         "userlist": docs
        });
     }); 
+
  });   
 
-function matchAndFilter(req) {
+
+//cancel matching process
+function stopMatchingProcess() {
+  clearTimeout(timeoutID);
+}
+
+//filtering and matching
+function filterAndMatch(req) {
+    var userRadius = 1609000
     req.db.get('UserRequests').aggregate([
         {
         $geoNear: {
                 near: { type: "Point", coordinates: [ 1 , 1 ] },
                 distanceField: "dist.calculated",
-                maxDistance : 1000 * 1609,
+                maxDistance : userRadius,
                 spherical: true
         } 
         },
@@ -70,9 +92,10 @@ function matchAndFilter(req) {
         $unwind : "$info"
      },
      {
-            $out : "MatchResults"
+        $out : "MatchResults"
      }
     ]); 
 };
+
 
 module.exports = router;
