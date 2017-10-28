@@ -48,9 +48,9 @@ router.post('/createProfile', function(req, res) {
 });
 
 /* GET user profile information */
-router.get('/userInfo', function(req, res) {
+router.post('/userInfo', function(req, res) {
     var db = req.db;
-    var query = req.query;
+    var query = req.body;
     var loginUserName = query.username;
     var loginPassword = query.password;
 
@@ -64,14 +64,15 @@ router.get('/userInfo', function(req, res) {
     */
     collection.findOne({'UserName' : loginUserName, 'Password' : loginPassword},{}, function(err, result) {
         if (err) {
-            res.json({'error':'an error has occured'});
+            res.json({"Status": 'Failed'});
         } else {
             var userInfo = {
                 "UserID" : result.UserID,
                 "Rating" : result.Rating,
                 "Year" : result.Year,
                 "Major" : result.Major,
-                "Name" : result.Name
+                "Name" : result.Name,
+                "Status" : 'Success'
             };
             res.json(userInfo);
         }
