@@ -1,5 +1,6 @@
 var express = require('express');
 var router = express.Router();
+var intervalID;
 var timeoutID;
 
 /* GET home page. */
@@ -7,75 +8,110 @@ router.get('/', function(req, res, next) {
   res.render('index', { title: 'Express' });
 });
 
+
 /* GET list of matches */
 router.get('/userMatches', function(req, res) {
     var db = req.db;
-
     var collection = db.get('UserRequests');
+
+    // Creating index for spatial data
     collection.createIndex({
         loc : "2dsphere"
     });
 
-    // TTL - timeout for each requests in the table
-    collection.createIndex({created_at: 1}, {expireAfterSeconds: 60});
+    // Creating TTL Index for each user request
+    collection.createIndex({createdAt: 1}, {expireAfterSeconds: 300});
 
-    //Extract from incoming requests and add to UserRequests table
-
-   /* collection.insert({created_at: new Date(Date.now())}); //- Append this field to userrequests 
-    var requests = {
+    //Extract information from incoming requests and add to UserRequests table
+    var query = req.query;
+    var request = {
     "Type" : "User",
-    "UserID" : "8",
-    "Radius" : "2",
+    "UserID" : query.userid,
+    "Radius" : query.radius,
     "Status" : "Active",
-    "ClassID" : "2",
+    "ClassID" : query.classid,
     "loc" : {
         "type" : "Point",
         "coordinates" : [
-            1,
-            1
+             parseInt(query.lat),
+             parseInt(query.lng)
         ]
     },
-    "created_at" : new Date(Date.now()) 
-}
-    collection.insert(requests) */
+    "createdAt" : new Date(Date.now()) 
+    }
+    collection.insert(request);
+    
+    // Call matching process every second repeateadly for 5s
+    setIntervalX(function () { filterAndMatch(req,query,res); }, 1000, 3);
 
+    // Gather results of matching process
+    timeoutID = setTimeout(function(){
 
-    //call matchAndFilter after 5 seconds -- use setInterval instead
-    timeoutId = setTimeout(function() {filterAndMatch(req);}, 5000);
-
-    // return list of users that have overlapping ranges
+    // Match users that have overlapping radius
     db.get("MatchResults").find({"$where" : "this.dist.calculated > parseInt(this.Radius)" },{},
-        function(e,docs) {
+        function(err,users) {
 
-    //check if docs is empty - return no users if so otherwise return list
+    if (err) {
+        res.json({"Status": 'Failed'});
+    }
 
-    res.render('userlist', {
-        "userlist": docs
-       });
-    }); 
+    if(JSON.stringify(users) == JSON.stringify({})) {
+        res.json({'Msg' : 'No matches found'});
+    }        
+
+    else {
+       var listUsers = [] 
+       users.forEach(function (result) {
+           var userInfo = {
+                "Name" : result.info.Name,
+                "Rating" : result.info.Rating,
+                "Year" : result.info.Year,
+                "Major" : result.info.Major,
+                "UserID" : result.UserID,
+                "Location" : result.loc.coordinates,
+                "Distance away" : result.dist.calculated
+            };
+            listUsers.push(userInfo);
+        });
+       console.log(listUsers);
+       res.json(listUsers);
+    }
+    });
+    }, 4000);
 
  });   
 
+/* Abort Match Process */
+router.get('/stopMatchProcess', function(req, res) {
+    clearInterval(intervalID);
+    clearTimeout(timeoutID);
+    res.json({'msg' : 'User has aborted match process!'})
+});
 
-//cancel matching process
-function stopMatchingProcess() {
-  clearTimeout(timeoutID);
-}
+/* Helper function for refereshing list of users */
+function setIntervalX(callback, delay, repetitions) {
+    var x = 0;
+    var intervalID = setInterval(function () {
+       callback();
+       if (++x === repetitions) {
+           clearInterval(intervalID);
+       }
+    }, delay);
+};
 
-//filtering and matching
-function filterAndMatch(req) {
-    var userRadius = 1609000
+//Function for filtering and matching users
+function filterAndMatch(req,query) {
     req.db.get('UserRequests').aggregate([
         {
         $geoNear: {
-                near: { type: "Point", coordinates: [ 1 , 1 ] },
+                near: { type: "Point", coordinates: [ parseInt(query.lat) , parseInt(query.lng) ] },
                 distanceField: "dist.calculated",
-                maxDistance : userRadius,
+                maxDistance : parseInt(query.radius) * 1609000,
                 spherical: true
         } 
         },
         {
-        $match:{ ClassID : "1"}
+        $match:{ ClassID : query.classid}
         },
         {
         $match:{ Status : "Active"}
@@ -95,7 +131,7 @@ function filterAndMatch(req) {
         $out : "MatchResults"
      }
     ]); 
-};
 
+};
 
 module.exports = router;
