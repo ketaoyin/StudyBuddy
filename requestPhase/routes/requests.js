@@ -11,6 +11,11 @@ router.get('/', function(req, res, next) {
 
 /* GET list of matches */
 router.get('/userMatches', function(req, res) {
+
+    /* Testing purposes only
+    var dist = getDistanceFromLatLonInKm(1,1,3,3);
+    console.log('dist ' + dist); */
+
     var db = req.db;
     var collection = db.get('UserRequests');
 
@@ -31,10 +36,10 @@ router.get('/userMatches', function(req, res) {
     "Status" : "Active",
     "ClassID" : query.classid,
     "loc" : {
-        "type" : "Point",
-        "coordinates" : [
-             parseInt(query.lat),
-             parseInt(query.lng)
+        type : "Point",
+        coordinates : [
+             parseFloat(query.lng),
+             parseFloat(query.lat)
         ]
     },
     "createdAt" : new Date(Date.now()) 
@@ -48,14 +53,14 @@ router.get('/userMatches', function(req, res) {
     timeoutID = setTimeout(function(){
 
     // Match users that have overlapping radius
-    db.get("MatchResults").find({"$where" : "this.dist.calculated > parseInt(this.Radius)" },{},
+    db.get("MatchResults").find({"$where" : "this.dist.calculated < parseFloat(this.Radius) && this.dist.calculated != 0" },{},
         function(err,users) {
 
     if (err) {
         res.json({"Status": 'Failed'});
     }
 
-    if(JSON.stringify(users) == JSON.stringify({})) {
+    if(JSON.stringify(users) == "[]") {
         res.json({'Msg' : 'No matches found'});
     }        
 
@@ -69,7 +74,7 @@ router.get('/userMatches', function(req, res) {
                 "Major" : result.info.Major,
                 "UserID" : result.UserID,
                 "Location" : result.loc.coordinates,
-                "Distance away" : result.dist.calculated
+                "Distance away(m)" : result.dist.calculated
             };
             listUsers.push(userInfo);
         });
@@ -104,9 +109,9 @@ function filterAndMatch(req,query) {
     req.db.get('UserRequests').aggregate([
         {
         $geoNear: {
-                near: { type: "Point", coordinates: [ parseInt(query.lat) , parseInt(query.lng) ] },
+                near: { type: "Point", coordinates: [ parseFloat(query.lng) , parseFloat(query.lat) ] },
                 distanceField: "dist.calculated",
-                maxDistance : parseInt(query.radius) * 1609000,
+                maxDistance : parseFloat(query.radius),
                 spherical: true
         } 
         },
@@ -133,5 +138,26 @@ function filterAndMatch(req,query) {
     ]); 
 
 };
+
+/*
+//FOR testing purposes only
+function getDistanceFromLatLonInKm(lat1,lon1,lat2,lon2) {
+  var R = 6371; // Radius of the earth in km
+  var dLat = deg2rad(lat2-lat1);  // deg2rad below
+  var dLon = deg2rad(lon2-lon1); 
+  var a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2)
+    ; 
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  var d = R * c; // Distance in km
+  return d;
+};
+
+function deg2rad(deg) {
+  return deg * (Math.PI/180)
+};
+*/
 
 module.exports = router;
