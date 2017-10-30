@@ -44,7 +44,9 @@ router.get('/userMatches', function(req, res) {
     },
     "createdAt" : new Date(Date.now()) 
     }
-    collection.insert(request);
+
+    collection.update({"UserID" : query.userid},request,{ upsert: true });
+    
     
     // Call matching process every second repeateadly for 5s
     setIntervalX(function () { filterAndMatch(req,query,res); }, 1000, 3);
