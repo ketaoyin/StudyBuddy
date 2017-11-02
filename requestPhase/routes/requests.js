@@ -10,7 +10,7 @@ router.get('/', function(req, res, next) {
 
 
 /* GET list of matches */
-router.get('/userMatches', function(req, res) {
+router.post('/userMatches', function(req, res) {
 
     /* Testing purposes only
     var dist = getDistanceFromLatLonInKm(1,1,3,3);
@@ -28,7 +28,7 @@ router.get('/userMatches', function(req, res) {
     collection.createIndex({createdAt: 1}, {expireAfterSeconds: 300});
 
     //Extract information from incoming requests and add to UserRequests table
-    var query = req.query;
+    var query = req.body;
     var request = {
     "Type" : "User",
     "UserID" : query.userid,
@@ -55,35 +55,35 @@ router.get('/userMatches', function(req, res) {
     timeoutID = setTimeout(function(){
 
     // Match users that have overlapping radius
-    db.get("MatchResults").find({"$where" : "this.dist.calculated < parseFloat(this.Radius) && this.dist.calculated != 0" },{},
+    db.get('MatchResults').find({"$where" : "this.dist.calculated < parseFloat(this.Radius) && this.dist.calculated != 0"},{},
         function(err,users) {
 
-    if (err) {
-        res.json({"Status": 'Failed'});
-    }
+            if (err) {
+                res.json({"Status": 'Failed'});
+            }
 
-    if(JSON.stringify(users) == "[]") {
-        res.json({'Msg' : 'No matches found'});
-    }        
+            if(JSON.stringify(users) == "[]") {
+                res.json({"Msg" : 'No matches found'});
+            }        
 
-    else {
-       var listUsers = [] 
-       users.forEach(function (result) {
-           var userInfo = {
-                "Name" : result.info.Name,
-                "Rating" : result.info.Rating,
-                "Year" : result.info.Year,
-                "Major" : result.info.Major,
-                "UserID" : result.UserID,
-                "Location" : result.loc.coordinates,
-                "Distance away(m)" : result.dist.calculated
-            };
-            listUsers.push(userInfo);
+            else {
+               var listUsers = [] 
+               users.forEach(function (result) {
+                   var userInfo = {
+                        "Name" : result.info.Name,
+                        "Rating" : result.info.Rating,
+                        "Year" : result.info.Year,
+                        "Major" : result.info.Major,
+                        "UserID" : result.UserID,
+                        "Location" : result.loc.coordinates,
+                        "Distance away(m)" : result.dist.calculated
+                    };
+                    listUsers.push(userInfo);
+                });
+               console.log(listUsers);
+               res.json({"Matches" : listUsers});
+            }
         });
-       console.log(listUsers);
-       res.json(listUsers);
-    }
-    });
     }, 4000);
 
  });   
