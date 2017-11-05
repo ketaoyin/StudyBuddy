@@ -9,7 +9,7 @@ db.userrequests.update( {"UserID" : "3"}, {$set : {loc : {coordinates : [3,3] }}
 
 db.userrequests.aggregate([{ $lookup:{          from: 'userprofiles',          localField: 'UserID',          foreignField: 'UserID',          as: 'info'        } },{$unwind: "$info"}]).pretty
 
-profiles = [{ "Username" : "Harrison", "UserID" : "4", "Rating" : "0", "Class" : "BDS", "numRatings" : "0", "Year" : "2016", "Major" : "MSCS" },{ "Username" : "Ketao", "UserID" : "2", "Rating" : "0", "Class" : "BDS", "numRatings" : "0", "Year" : "2017", "Major" : "MSCS" },{ "Username" : "Chris", "UserID" : "3", "Rating" : "0", "Class" : "BDS", "numRatings" : "0", "Year" : "2016", "Major" : "MSCS" }]
+profiles = [{ "UserName" : "Harrison", "UserID" : "4", "Rating" : "0", "ClassName" : "BDS", "NumRatings" : "0", "Year" : "2016", "Major" : "MSCS", "Name" : "Harrison Kim","Password" : "12345" },{ "UserName" : "Ketao", "UserID" : "2", "Rating" : "0", "ClassName" : "BDS", "NumRatings" : "0", "Year" : "2017", "Major" : "MSCS", "Name" : "Ketao Yin","Password" : "12345"},{ "UserName" : "Chris", "UserID" : "3", "Rating" : "0", "ClassName" : "BDS", "numRatings" : "0", "Year" : "2016", "Major" : "MSCS","Name" : "Chris Colon","Password" : "12345" }]
 
 db.usercollection.insert(profiles)
 

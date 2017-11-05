@@ -1,6 +1,6 @@
 var express = require('express');
+
 var router = express.Router();
-var intervalID;
 var timeoutID;
 
 /* GET home page. */
@@ -10,7 +10,7 @@ router.get('/', function(req, res, next) {
 
 
 /* GET list of matches */
-router.post('/userMatches', function(req, res) {
+router.get('/userMatches', function(req, res) {
 
     /* Testing purposes only
     var dist = getDistanceFromLatLonInKm(1,1,3,3);
@@ -28,7 +28,7 @@ router.post('/userMatches', function(req, res) {
     collection.createIndex({createdAt: 1}, {expireAfterSeconds: 300});
 
     //Extract information from incoming requests and add to UserRequests table
-    var query = req.body;
+    var query = req.query;
     var request = {
     "Type" : "User",
     "UserID" : query.userid,
@@ -46,68 +46,10 @@ router.post('/userMatches', function(req, res) {
     }
 
     collection.update({"UserID" : query.userid},request,{ upsert: true });
-    
-    
-    // Call matching process every second repeateadly for 5s
-    setIntervalX(function () { filterAndMatch(req,query,res); }, 1000, 3);
+  
+    // Gather results of matching process after 4s (before timeout)
+    timeoutID = setTimeout(function() {
 
-    // Gather results of matching process
-    timeoutID = setTimeout(function(){
-
-    // Match users that have overlapping radius
-    db.get('MatchResults').find({"$where" : "this.dist.calculated < parseFloat(this.Radius) && this.dist.calculated != 0"},{},
-        function(err,users) {
-
-            if (err) {
-                res.json({"Status": 'Failed'});
-            }
-
-            if(JSON.stringify(users) == "[]") {
-                res.json({"Msg" : 'No matches found'});
-            }        
-
-            else {
-               var listUsers = [] 
-               users.forEach(function (result) {
-                   var userInfo = {
-                        "Name" : result.info.Name,
-                        "Rating" : result.info.Rating,
-                        "Year" : result.info.Year,
-                        "Major" : result.info.Major,
-                        "UserID" : result.UserID,
-                        "Location" : result.loc.coordinates,
-                        "Distance away(m)" : result.dist.calculated
-                    };
-                    listUsers.push(userInfo);
-                });
-               console.log(listUsers);
-               res.json({"Matches" : listUsers});
-            }
-        });
-    }, 4000);
-
- });   
-
-/* Abort Match Process */
-router.get('/stopMatchProcess', function(req, res) {
-    clearInterval(intervalID);
-    clearTimeout(timeoutID);
-    res.json({'msg' : 'User has aborted match process!'})
-});
-
-/* Helper function for refereshing list of users */
-function setIntervalX(callback, delay, repetitions) {
-    var x = 0;
-    var intervalID = setInterval(function () {
-       callback();
-       if (++x === repetitions) {
-           clearInterval(intervalID);
-       }
-    }, delay);
-};
-
-//Function for filtering and matching users
-function filterAndMatch(req,query) {
     req.db.get('UserRequests').aggregate([
         {
         $geoNear: {
@@ -133,13 +75,45 @@ function filterAndMatch(req,query) {
      },
      {
         $unwind : "$info"
-     },
-     {
-        $out : "MatchResults"
-     }
-    ]); 
+     }], function(err,data ) {
 
-};
+    if(err)
+        throw err;
+
+    var listUsers = [] 
+       data.forEach(function (result) {
+        if(result.dist.calculated < parseFloat(result.Radius) && result.dist.calculated !=0 ) {
+           var userInfo = {
+                "Name" : result.info.Name,
+                "Rating" : result.info.Rating,
+                "Year" : result.info.Year,
+                "Major" : result.info.Major,
+                "UserID" : result.UserID,
+                "Location" : result.loc.coordinates,
+                "Distance away(m)" : result.dist.calculated
+            };
+            listUsers.push(userInfo);
+          }
+        });
+
+        if(JSON.stringify(listUsers) == "[]") {
+              res.json({"Msg" : 'No matches found'});
+          }  
+
+        else
+      res.json({"Matches" : listUsers});
+
+    });
+  }, 4000);
+
+ });   
+
+
+/* Abort Match Process */
+router.get('/stopMatchProcess', function(req, res) {
+    clearTimeout(timeoutID);
+    res.json({'msg' : 'User has aborted match process!'})
+});
 
 /*
 //FOR testing purposes only
