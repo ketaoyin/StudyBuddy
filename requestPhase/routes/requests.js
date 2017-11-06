@@ -8,7 +8,6 @@ router.get('/', function(req, res, next) {
   res.render('index', { title: 'Express' });
 });
 
-
 /* GET list of matches */
 router.get('/userMatches', function(req, res) {
 
@@ -25,7 +24,7 @@ router.get('/userMatches', function(req, res) {
     });
 
     // Creating TTL Index for each user request
-    collection.createIndex({createdAt: 1}, {expireAfterSeconds: 300});
+   // collection.createIndex({createdAt: 1}, {expireAfterSeconds: 300});
 
     //Extract information from incoming requests and add to UserRequests table
     var query = req.query;
@@ -42,7 +41,7 @@ router.get('/userMatches', function(req, res) {
              parseFloat(query.lat)
         ]
     },
-    "createdAt" : new Date(Date.now()) 
+   // "createdAt" : new Date(Date.now()) 
     }
 
     collection.update({"UserID" : query.userid},request,{ upsert: true });
