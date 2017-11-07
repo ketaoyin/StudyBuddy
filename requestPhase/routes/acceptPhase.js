@@ -84,8 +84,17 @@ router.get('/receiveMsgFromServer', function(req, res, next) {
    var userID = req.query.userid;
    
    req.db.get('userIDPort').findOne({"UserID": userID}, function(err, document) {
-   var clientMsg = ioClient.connect("http://10.0.0.205:" + document.Port);
+   
+   console.log("Here!!!!")
+
+   var clientMsg = ioClient.connect("http://128.61.116.87:" + document.Port);
+   
+   console.log("HERE!!!!")
+
    clientMsg.on("msg", (msg) => res.json(msg));
+
+   console.log("Got it!!!!")
+
    });	
 });
 
@@ -115,7 +124,9 @@ router.get('/respondToPairReq', function(req, res, next) {
 		res.json("Congrats! You've been paired with User A");
 
 		db.get('UserRequests').update({"UserID": req.query.userid}, {$set : {"Status" : "Grouped"}});
-		db.get('UserRequests').update({"UserID": req.query.myid}, {$set : {"Status" : "Grouped"}}); 	
+
+		// Group Leader remains active in the Requests Table
+		// db.get('UserRequests').update({"UserID": req.query.myid}, {$set : {"Status" : "Grouped"}});
 	}
 		
 
