@@ -18,13 +18,40 @@ router.get('/userMatches', function(req, res) {
     var db = req.db;
     var collection = db.get('UserRequests');
 
+
+    // CREATE NEW USER-PORT ASSIGNMENT, IF NECESSARY
+    db.get('userIDPort').findOne({"UserID" : req.query.userid}, function(err, result) {
+        if (result == null) {
+            console.log("User (" + req.query.userid + ") does not have a port number assigned");
+
+            db.get('userIDPort').find({}, {sort: {Port : -1}, limit : 1}, function(err, result) {
+                console.log("Max port number is: " + result[0]["Port"]);
+                var portNum = (parseInt(result[0]["Port"], 10) + 1).toString();
+                console.log("New Port Number: " + portNum);
+
+                var entry = {
+                    "UserID" : req.query.userid,
+                    "Port" : portNum
+                }
+
+                db.get('userIDPort').insert(entry);
+                
+                console.log("User (" + req.query.userid + ") has been assigned port number: " + portNum + "\n");
+            });
+
+        } else {
+            console.log("This user (" + req.query.userid + ") is assigned port number " + result["Port"])
+        }
+    });
+
+
     // Creating index for spatial data
     collection.createIndex({
         loc : "2dsphere"
     });
 
     // Creating TTL Index for each user request
-   collection.createIndex({createdAt: 1}, {expireAfterSeconds: 300});
+   // collection.createIndex({createdAt: 1}, {expireAfterSeconds: 300});
 
     //Extract information from incoming requests and add to UserRequests table
     var query = req.query;
@@ -41,7 +68,7 @@ router.get('/userMatches', function(req, res) {
              parseFloat(query.lat)
         ]
     },
-   "createdAt" : new Date(Date.now()) 
+   // "createdAt" : new Date(Date.now()) 
     }
 
     collection.update({"UserID" : query.userid},request,{ upsert: true });
@@ -74,7 +101,7 @@ router.get('/userMatches', function(req, res) {
      },
      {
         $unwind : "$info"
-     }], function(err,data) {
+     }], function(err,data ) {
 
     if(err)
         throw err;
