@@ -20,6 +20,8 @@ router.get('/userMatches', function(req, res) {
 
 
     // CREATE NEW USER-PORT ASSIGNMENT, IF NECESSARY
+    var userPortNum = "";
+
     db.get('userIDPort').findOne({"UserID" : req.query.userid}, function(err, result) {
         if (result == null) {
             console.log("User (" + req.query.userid + ") does not have a port number assigned");
@@ -37,10 +39,16 @@ router.get('/userMatches', function(req, res) {
                 db.get('userIDPort').insert(entry);
                 
                 console.log("User (" + req.query.userid + ") has been assigned port number: " + portNum + "\n");
+
+                // Return port num to user
+                userPortNum = portNum;
             });
 
         } else {
             console.log("This user (" + req.query.userid + ") is assigned port number " + result["Port"])
+
+            // Return port num to user
+            userPortNum = result["Port"];
         }
     });
 
@@ -125,9 +133,13 @@ router.get('/userMatches', function(req, res) {
         if(JSON.stringify(listUsers) == "[]") {
               res.json({"Msg" : 'No matches found'});
           }  
-
+        // Return doc
         else
-      res.json({"Matches" : listUsers});
+      res.json(
+        {
+            "Matches" : listUsers,
+            "UserPortNum" : userPortNum
+        });
 
     });
   }, 4000);
