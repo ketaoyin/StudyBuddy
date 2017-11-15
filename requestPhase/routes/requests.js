@@ -43,8 +43,8 @@ router.get('/userMatches', function(req, res) {
                 // Return port num to user
                 userPortNum = portNum;
             });
-
-        } else {
+        }
+        else {
             console.log("This user (" + req.query.userid + ") is assigned port number " + result["Port"])
 
             // Return port num to user
@@ -59,90 +59,99 @@ router.get('/userMatches', function(req, res) {
     });
 
     // Creating TTL Index for each user request
-   // collection.createIndex({createdAt: 1}, {expireAfterSeconds: 300});
+    // collection.createIndex({createdAt: 1}, {expireAfterSeconds: 300});
 
     //Extract information from incoming requests and add to UserRequests table
     var query = req.query;
     var request = {
-    "Type" : "User",
-    "UserID" : query.userid,
-    "Radius" : query.radius,
-    "Status" : "Active",
-    "ClassID" : query.classid,
-    "loc" : {
-        type : "Point",
-        coordinates : [
-             parseFloat(query.lng),
-             parseFloat(query.lat)
-        ]
-    },
-   // "createdAt" : new Date(Date.now()) 
+        "Type" : "User",
+        "UserID" : query.userid,
+        "Radius" : query.radius,
+        "Status" : "Active",
+        "ClassID" : query.classid,
+        "loc" : {
+            type : "Point",
+            coordinates : [
+                 parseFloat(query.lng),
+                 parseFloat(query.lat)
+            ]
+        },
+        // "createdAt" : new Date(Date.now()) 
     }
 
+    // Update a request instead if it is already in table
     collection.update({"UserID" : query.userid},request,{ upsert: true });
   
     // Gather results of matching process after 4s (before timeout)
     timeoutID = setTimeout(function() {
 
-    req.db.get('UserRequests').aggregate([
-        {
-        $geoNear: {
-                near: { type: "Point", coordinates: [ parseFloat(query.lng) , parseFloat(query.lat) ] },
-                distanceField: "dist.calculated",
-                maxDistance : parseFloat(query.radius),
-                spherical: true
-        } 
-        },
-        {
-        $match:{ ClassID : query.classid}
-        },
-        {
-        $match:{ Status : "Active"}
-        },
-        { $lookup:
-       {
-         from: 'UserProfiles',
-         localField: 'UserID',
-         foreignField: 'UserID',
-         as: 'info'
-       }
-     },
-     {
-        $unwind : "$info"
-     }], function(err,data ) {
+        // Aggregate pipeline to find users that are within request sender's radius
+        req.db.get('UserRequests').aggregate([
+            {
+                $geoNear: {
+                        near: {
+                            type: "Point",
+                            coordinates: [
+                                parseFloat(query.lng),
+                                parseFloat(query.lat)
+                            ]
+                        },
+                        distanceField: "dist.calculated",
+                        maxDistance : parseFloat(query.radius),
+                        spherical: true
+                }
+            },
+            {
+                $match:{ ClassID : query.classid}
+            },
+            {
+                $match:{ Status : "Active"}
+            },
+            {
+                $lookup: {
+                    from: 'UserProfiles',
+                    localField: 'UserID',
+                    foreignField: 'UserID',
+                    as: 'info'
+                }
+            },
+            {
+                $unwind : "$info"
+            }], function(err, data) {
 
-    if(err)
-        throw err;
+                if(err)
+                    throw err;
 
-    var listUsers = [] 
-       data.forEach(function (result) {
-        if(result.dist.calculated < parseFloat(result.Radius) && result.dist.calculated !=0 ) {
-           var userInfo = {
-                "Name" : result.info.Name,
-                "Rating" : result.info.Rating,
-                "Year" : result.info.Year,
-                "Major" : result.info.Major,
-                "UserID" : result.UserID,
-                "Location" : result.loc.coordinates,
-                "Distance away(m)" : result.dist.calculated
-            };
-            listUsers.push(userInfo);
-          }
-        });
+                // List of users to be returned
+                var listUsers = [];
+                data.forEach(function (result) {
+                    if(result.dist.calculated < parseFloat(result.Radius) && result.dist.calculated !=0 ) {
+                        var userInfo = {
+                            "Name" : result.info.Name,
+                            "Rating" : result.info.Rating,
+                            "Year" : result.info.Year,
+                            "Major" : result.info.Major,
+                            "UserID" : result.UserID,
+                            "Location" : result.loc.coordinates,
+                            "Distance away(m)" : result.dist.calculated
+                        };
+                        listUsers.push(userInfo);
+                    }
+                });
 
-        if(JSON.stringify(listUsers) == "[]") {
-              res.json({"Msg" : 'No matches found'});
-          }  
-        // Return doc
-        else
-      res.json(
-        {
-            "Matches" : listUsers,
-            "UserPortNum" : userPortNum
-        });
-
-    });
-  }, 4000);
+                // No matches found
+                if(JSON.stringify(listUsers) == "[]") {
+                    res.json({"Msg" : 'No matches found'});
+                }
+                
+                // Return matches
+                else
+                    res.json({
+                        "Matches" : listUsers,
+                        "UserPortNum" : userPortNum
+                    });
+            });
+    }, 4000);
 
  });   
 
