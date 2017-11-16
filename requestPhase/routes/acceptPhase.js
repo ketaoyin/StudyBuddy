@@ -3,7 +3,7 @@ var express = require('express');
 var router = express.Router();
 var ioServer = require('socket.io');
 var ioClient = require('socket.io-client');
-var serverIP = "http://128.61.122.206";
+var serverIP = "http://128.61.123.165";
 
 router.get('/', function(req, res, next) {
   res.json('Accept Phase');
@@ -55,6 +55,27 @@ router.get('/invitePairReq', function(req, res, next) {
 	                "Major" : result[0].info.Major,
 	                "Location" : result[0].loc.coordinates,
 		        }
+
+		        // Append correct Group ID and chat port ID number (group leader's port + 1000)
+		        db.get('UserRequests').find({"UserID" : userID}, function(err, document) {
+		        	// Matchee should be group leader
+		        	if (document.GroupID == userID) {
+		        		userInfo["NewGroupID"] = document.GroupID;
+
+		        		db.get('userIDPort').findOne({"UserID" : userID}, function(err, document) {
+		        			userInfo["NewChatPort"] = (parseInt(document.Port) + 1000).toString();
+		        		});
+		        	}
+		        	// Matcher should be group leader
+		        	else {
+		        		userInfo["NewGroupID"] = myID;
+
+		        		db.get('userIDPort').findOne({"UserID" : myID}, function(err, document) {
+		        			userInfo["NewChatPort"] = (parseInt(document.Port) + 1000).toString();
+		        		});
+		        	}
+		        });
+
 
 		        console.log('Matchee info package: ' + JSON.stringify(userInfo))
 
