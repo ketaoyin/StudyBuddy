@@ -109,7 +109,10 @@ router.get('/invitePairReq', function(req, res, next) {
 });
 
 // 1.User B receives req and can view User A's profile -- should be continously listening on client port
- // 2. User A listens on it's port after inviting User B -- -- should be continously listening on client port
+// 2. User A listens on it's port after inviting User B -- -- should be continously listening on client port
+/*
+	Input: userid = user ID
+*/
 router.get('/receiveMsgFromServer', function(req, res, next) {
    var port;
    var userID = req.query.userid;
@@ -126,8 +129,10 @@ router.get('/receiveMsgFromServer', function(req, res, next) {
 //User B responds to user A's pair request -- sends user A's and B's userid and response(1 or 0)
 /*
 	Input: value - 1 for accepting invite, 0 for reject
-		   newGroupID = new group ID received from server during HS2
-		   newChatPort = new chat port received from server during HS2
+		   newGroupID - new group ID received from server during HS2
+		   newChatPort - new chat port received from server during HS2
+		   myid - respondent's user ID
+		   userid - invite sender's user ID
 	Output: {
 				Response: 1 or 0, 1 for accepted, 0 for rejected
 				Msg: message, according to Response
