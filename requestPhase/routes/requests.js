@@ -9,6 +9,19 @@ router.get('/', function(req, res, next) {
 });
 
 /* GET list of matches */
+/* 
+    Input: userid, radius, classid, lng, lat, searchType
+    Output:
+        if searching for individual:
+            {"Matches" : [List of matched users' information JSON objects],
+             "UserPortNum" : request sender's port number for socket.io}
+        if searching for group:
+            {"Matches" : [
+                {Leader: {Group Leader's Information JSON object},
+                 Members: [List of group member's information JSON objects]}
+             ],
+             "UserPortNum" : request sender's port number for socket.io}
+*/
 router.get('/userMatches', function(req, res) {
 
     /* Testing purposes only
@@ -18,10 +31,8 @@ router.get('/userMatches', function(req, res) {
     var db = req.db;
     var collection = db.get('UserRequests');
 
-
     // CREATE NEW USER-PORT ASSIGNMENT, IF NECESSARY
     var userPortNum = "";
-
     db.get('userIDPort').findOne({"UserID" : req.query.userid}, function(err, result) {
         if (result == null) {
             console.log("User (" + req.query.userid + ") does not have a port number assigned");
@@ -52,7 +63,6 @@ router.get('/userMatches', function(req, res) {
         }
     });
 
-
     // Creating index for spatial data
     collection.createIndex({
         loc : "2dsphere"
@@ -79,6 +89,9 @@ router.get('/userMatches', function(req, res) {
         // "createdAt" : new Date(Date.now()) 
     }
 
+    // Search type: "Group" or "Individual"
+    var searchType = query.searchType;
+
     // Update a request instead if it is already in table
     collection.update({"UserID" : query.userid},request,{ upsert: true });
   
@@ -89,16 +102,16 @@ router.get('/userMatches', function(req, res) {
         req.db.get('UserRequests').aggregate([
             {
                 $geoNear: {
-                        near: {
-                            type: "Point",
-                            coordinates: [
-                                parseFloat(query.lng),
-                                parseFloat(query.lat)
-                            ]
-                        },
-                        distanceField: "dist.calculated",
-                        maxDistance : parseFloat(query.radius),
-                        spherical: true
+                    near: {
+                        type: "Point",
+                        coordinates: [
+                            parseFloat(query.lng),
+                            parseFloat(query.lat)
+                        ]
+                    },
+                    distanceField: "dist.calculated",
+                    maxDistance : parseFloat(query.radius),
+                    spherical: true
                 }
             },
             {
@@ -117,15 +130,23 @@ router.get('/userMatches', function(req, res) {
             },
             {
                 $unwind : "$info"
-            }], function(err, data) {
+            }
+        ], function(err, data) {
+            if(err) {
+                console.log("ERROR: initial aggregation");
+                console.log(err);
+                throw err;
+            }
 
-                if(err)
-                    throw err;
+            // List of users to be returned
+            var listUsers = [];
 
-                // List of users to be returned
-                var listUsers = [];
-                data.forEach(function (result) {
-                    if(result.dist.calculated < parseFloat(result.Radius) && result.dist.calculated !=0 ) {
+            data.forEach(function (result) {
+
+                // Check if request sender is within matchee's range
+                if(result.dist.calculated < parseFloat(result.Radius) && result.dist.calculated !=0 ) {
+                    if (searchType == "Individual" && result.UserID != result.GroupID) {
+                        console.log("Finding individuals that match the user's criteria...");
                         var userInfo = {
                             "Name" : result.info.Name,
                             "Rating" : result.info.Rating,
@@ -137,22 +158,88 @@ router.get('/userMatches', function(req, res) {
                         };
                         listUsers.push(userInfo);
                     }
+                    else if (searchType == "Group" && result.UserID == result.GroupID) {
+                        console.log("Finding groups that match the user's criteria...");
+
+                        var groupInfo = {};
+                        
+                        var leaderInfo = {
+                            "Name" : result.info.Name,
+                            "Rating" : result.info.Rating,
+                            "Year" : result.info.Year,
+                            "Major" : result.info.Major,
+                            "UserID" : result.UserID,
+                            "Location" : result.loc.coordinates,
+                            "Distance away(m)" : result.dist.calculated
+                        };
+
+                        groupInfo["Leader"] = leaderInfo;
+
+                        // Find members of the group
+                        groupInfo["Members"] = req.db.get('UserRequests').aggregate([
+                            {
+                                $match:{ GroupID : result.GroupID }
+                            },
+                            {
+                                $match:{ Status : "Matched" }
+                            },
+                            {
+                                $lookup: {
+                                    from: 'UserProfiles',
+                                    localField: 'UserID',
+                                    foreignField: 'UserID',
+                                    as: 'info'
+                                }
+                            },
+                            {
+                                $unwind : "$info"
+                            }
+                            ], function(err, memberData) {
+                                
+                                var listMembers = [];
+
+                                var count = 1;
+
+                                memberData.forEach(function (result) {
+
+                                    console.log("Member #" + count + ": " + result.info.Name + ", " + result.UserID);
+
+                                    count += 1;
+
+                                    var member = {
+                                        "Name" : result.info.Name,
+                                        "Rating" : result.info.Rating,
+                                        "Year" : result.info.Year,
+                                        "Major" : result.info.Major,
+                                        "UserID" : result.UserID
+                                    };
+                                    listMembers.push(member);
+                                });
+
+                                groupInfo["Members"] = listMembers;
+                                return listMembers;
+                            });
+
+                        listUsers.push(groupInfo);
+                        
+                        }
+                    }
                 });
+        
 
-                // No matches found
-                if(JSON.stringify(listUsers) == "[]") {
-                    res.json({"Msg" : 'No matches found'});
-                }
-                
-                // Return matches
-                else
-                    res.json({
-                        "Matches" : listUsers,
-                        "UserPortNum" : userPortNum
-                    });
-            });
+            // No matches found
+            if(JSON.stringify(listUsers) == "[]") {
+                res.json({"Msg" : 'No matches found'});
+            }
+            // Return matches
+            else {
+                res.json({
+                    "Matches" : listUsers,
+                    "UserPortNum" : userPortNum
+                });
+            }
+        });
     }, 4000);
-
  });   
 
 
