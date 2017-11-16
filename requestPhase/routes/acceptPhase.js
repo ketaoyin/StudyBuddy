@@ -10,6 +10,10 @@ router.get('/', function(req, res, next) {
 });
 
 //User A invites B to pair - Step 1,1.5,2
+/*
+	Input: myid - invite sender's user ID
+		   userid - invitee's user ID
+*/
 router.get('/invitePairReq', function(req, res, next) {
 	var db = req.db;
     var collection = db.get('UserRequests');
@@ -120,6 +124,17 @@ router.get('/receiveMsgFromServer', function(req, res, next) {
 
 
 //User B responds to user A's pair request -- sends user A's and B's userid and response(1 or 0)
+/*
+	Input: value - 1 for accepting invite, 0 for reject
+		   newGroupID = new group ID received from server during HS2
+		   newChatPort = new chat port received from server during HS2
+	Output: {
+				Response: 1 or 0, 1 for accepted, 0 for rejected
+				Msg: message, according to Response
+				NewGroupID: new group ID, if Response == 1
+				NewChatPort: new chat port, if Response == 1
+			}
+*/
 router.get('/respondToPairReq', function(req, res, next) {
 	var db = req.db;
 	var query = req.query;
@@ -128,40 +143,66 @@ router.get('/respondToPairReq', function(req, res, next) {
 	if(query.value == '1') {
 		db.get('userIDPort').findOne({"UserID": req.query.userid}, function(err, document) {
 
-	    var server = ioServer.listen(document.Port);
+		    var server = ioServer.listen(document.Port);
 
-	    console.log("User ID: " + req.query.userid + " Port: " + document.Port)
-		server.on("connection", (socket) => {
-	    console.info(`Client connected [id=${socket.id}]`);
+		    console.log("User ID: " + req.query.userid + " Port: " + document.Port)
+			server.on("connection", (socket) => {
+			    console.info(`Client connected [id=${socket.id}]`);
 
-	    socket.emit("msg", "Congrats!User B has accepted your request");
+			    var reply = {
+			    	"Response" : "1",
+			    	"Msg" : "Congrats!User B has accepted your request",
+			    	"NewGroupID" : query.newGroupID,
+			    	"NewChatPort" : query.newChatPort
+			    }
 
-	    socket.on("disconnect", () => {
-	        console.info(`Client gone [id=${socket.id}]`);
-		    });
-		});
+			    socket.emit("msg", reply);
+			    // socket.emit("msg", "Congrats!User B has accepted your request");
+
+			    socket.on("disconnect", () => {
+			        console.info(`Client gone [id=${socket.id}]`);
+				});
+			});
 		});	 
 
 		res.json("Congrats! You've been paired with User A");
 
-		db.get('UserRequests').update({"UserID": req.query.userid}, {$set : {"Status" : "Grouped"}});
-		db.get('UserRequests').update({"UserID": req.query.myid}, {$set : {"Status" : "Grouped"}}); 	
+		// ToDo: all members' requests do NOT timeout
+		// User B (respondent) is the group leader
+		if (query.myid == query.newGroupID) {
+			db.get('UserRequests').update({"UserID": req.query.userid}, {$set : {"Status" : "Grouped"}});
+		}
+		// User A (invite sender) is the group leader
+		else if (query.userid == query.newGroupID) {
+			db.get('UserRequests').update({"UserID": req.query.myid}, {$set : {"Status" : "Grouped"}});
+		}
+		// ERROR: unexpected behavior
+		else {
+			console.log("ERROR: respondToPairReq unexpected behavior");
+		}
+		
 	}
 
 	else {
 		db.get('userIDPort').findOne({"UserID": req.query.userid}, function(err, document) {
 
-	    var server = ioServer.listen(document.Port);
+		    var server = ioServer.listen(document.Port);
 
-		server.on("connection", (socket) => {
-	    console.info(`Client connected [id=${socket.id}]`);
+			server.on("connection", (socket) => {
+			    console.info(`Client connected [id=${socket.id}]`);
 
-	    socket.emit("msg", "Sorry! User B declined your request. Try looking for another buddy! ");
+			    var reply = {
+			    	"Response" : "0",
+			    	"Msg" : "Sorry! User B declined your request. Try looking for another buddy!"
+			    }
 
-	    socket.on("disconnect", () => {
-	        console.info(`Client gone [id=${socket.id}]`);
-		    });
-		});
+			    socket.emit("msg", reply);
+			    // socket.emit("msg", "Sorry! User B declined your request. Try looking for another buddy! ");
+
+			    socket.on("disconnect", () => {
+			        console.info(`Client gone [id=${socket.id}]`);
+			    });
+			});
 		});	 
 		res.json("Thanks for responding to User A!");
 	}
