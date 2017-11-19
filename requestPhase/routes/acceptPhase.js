@@ -1,9 +1,17 @@
 var express = require('express');
-
+var cp = require('child_process');
 var router = express.Router();
 var ioServer = require('socket.io');
 var ioClient = require('socket.io-client');
-var serverIP = "http://128.61.123.165";
+
+// Network interfaces
+var address,
+    ifaces = require('os').networkInterfaces();
+for (var dev in ifaces) {
+    ifaces[dev].filter((details) => details.family === 'IPv4' && details.internal === false ? address = details.address: undefined);
+}
+
+var serverIP = "http://" + address;
 
 router.get('/', function(req, res, next) {
   res.json('Accept Phase');
@@ -14,11 +22,11 @@ router.get('/', function(req, res, next) {
 	Input: myid - invite sender's user ID
 		   userid - invitee's user ID
 */
-router.get('/invitePairReq', function(req, res, next) {
+router.post('/invitePairReq', function(req, res, next) {
 	var db = req.db;
     var collection = db.get('UserRequests');
-    var myID = req.query.myid;
-    var userID = req.query.userid;
+    var myID = req.body.myid;
+    var userID = req.body.userid;
     console.log('My ID: ' + myID);
     console.log('Matchee ID: ' + userID);
 
@@ -64,6 +72,8 @@ router.get('/invitePairReq', function(req, res, next) {
 		        db.get('UserRequests').find({"UserID" : userID}, function(err, document) {
 		        	// Matchee should be group leader
 		        	if (document.GroupID == userID) {
+
+		        		console.log('here' + document.GroupID)
 		        		userInfo["NewGroupID"] = document.GroupID;
 
 		        		db.get('userIDPort').findOne({"UserID" : userID}, function(err, document) {
@@ -87,7 +97,7 @@ router.get('/invitePairReq', function(req, res, next) {
 			    db.get('userIDPort').findOne({"UserID": userID}, function(err, document) {
 
 				    var server = ioServer.listen(document.Port);
-					
+					console.log('userIDPort' + document.Port)
 					server.on("connection", (socket) => {
 					    console.log(`Client connected [id=${socket.id}]`);
 
@@ -140,17 +150,22 @@ router.get('/receiveMsgFromServer', function(req, res, next) {
 				NewChatPort: new chat port, if Response == 1
 			}
 */
-router.get('/respondToPairReq', function(req, res, next) {
+router.post('/respondToPairReq', function(req, res, next) {
 	var db = req.db;
-	var query = req.query;
+	var query = req.body;
+
+	var args = []
+	args.push(query.newChatPort)
 
 	//Server sends acknowledgment to User A
-	if(query.value == '1') {
-		db.get('userIDPort').findOne({"UserID": req.query.userid}, function(err, document) {
+	if(parseInt(query.value) == 1) {
+		console.log('enter here')
+		cp.fork('../simple-nodejs-chat' + '/server.js', args);
+		db.get('userIDPort').findOne({"UserID": req.body.userid}, function(err, document) {
 
 		    var server = ioServer.listen(document.Port);
 
-		    console.log("User ID: " + req.query.userid + " Port: " + document.Port)
+		    console.log("User ID: " + req.body.userid + " Port: " + document.Port)
 			server.on("connection", (socket) => {
 			    console.info(`Client connected [id=${socket.id}]`);
 
@@ -175,11 +190,11 @@ router.get('/respondToPairReq', function(req, res, next) {
 		// ToDo: all members' requests do NOT timeout
 		// User B (respondent) is the group leader
 		if (query.myid == query.newGroupID) {
-			db.get('UserRequests').update({"UserID": req.query.userid}, {$set : {"Status" : "Grouped"}});
+			db.get('UserRequests').update({"UserID": req.body.userid}, {$set : {"Status" : "Grouped"}});
 		}
 		// User A (invite sender) is the group leader
 		else if (query.userid == query.newGroupID) {
-			db.get('UserRequests').update({"UserID": req.query.myid}, {$set : {"Status" : "Grouped"}});
+			db.get('UserRequests').update({"UserID": req.body.myid}, {$set : {"Status" : "Grouped"}});
 		}
 		// ERROR: unexpected behavior
 		else {
@@ -189,7 +204,7 @@ router.get('/respondToPairReq', function(req, res, next) {
 	}
 
 	else {
-		db.get('userIDPort').findOne({"UserID": req.query.userid}, function(err, document) {
+		db.get('userIDPort').findOne({"UserID": req.body.userid}, function(err, document) {
 
 		    var server = ioServer.listen(document.Port);
 
