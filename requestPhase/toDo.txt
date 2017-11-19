@@ -1,6 +1,4 @@
-1. Add userIDPort support to requests.js
-	- Need user to submit the port that they are listening on when they first make a request
-	- Or implement socket.io emitting to specific user
-	- Maintain mapping from ID to Port
-2. Fetch user's IP address to use in receiveMsgFromServer
-3. Figure out why it doesn't work on GTWifi
+AcceptPhase:
+	Backend:
+		- When two people are paired, change both of their group ID to correct group ID (the one that's been passed around) in server
+		- When two people are paired, remove timeout on their requests in requests table
