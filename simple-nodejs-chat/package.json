@@ -1,0 +1,62 @@
+{
+  "_from": "simple-nodejs-chat",
+  "_id": "simple-nodejs-chat@2.1.5",
+  "_inBundle": false,
+  "_integrity": "sha1-Q/6JBR/NQUJ0Peu0AAGaO0d8wDU=",
+  "_location": "/simple-nodejs-chat",
+  "_phantomChildren": {},
+  "_requested": {
+    "type": "tag",
+    "registry": true,
+    "raw": "simple-nodejs-chat",
+    "name": "simple-nodejs-chat",
+    "escapedName": "simple-nodejs-chat",
+    "rawSpec": "",
+    "saveSpec": null,
+    "fetchSpec": "latest"
+  },
+  "_requiredBy": [
+    "#USER",
+    "/"
+  ],
+  "_resolved": "https://registry.npmjs.org/simple-nodejs-chat/-/simple-nodejs-chat-2.1.5.tgz",
+  "_shasum": "43fe89051fcd4142743debb400019a3b477cc035",
+  "_spec": "simple-nodejs-chat",
+  "_where": "/home/vishesh/Desktop/testChat",
+  "author": {
+    "name": "SimHub",
+    "email": "simhub.dev@gmail.com"
+  },
+  "bugs": {
+    "url": "https://github.com/SimHub/responsive_nodejs_chat/issues"
+  },
+  "bundleDependencies": false,
+  "deprecated": false,
+  "description": "nodejs chat app",
+  "devDependencies": {
+    "express": "~3.4.4",
+    "mongodb": "~2.0",
+    "socket.io": "^1.4.5"
+  },
+  "engines": {
+    "node": ">= 5.5.0",
+    "npm": ">= 3.3.12"
+  },
+  "homepage": "https://github.com/SimHub/responsive_nodejs_chat#readme",
+  "keywords": [
+    "chat",
+    "Node.js",
+    "application",
+    "npm"
+  ],
+  "main": "server.js",
+  "name": "simple-nodejs-chat",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SimHub/responsive_nodejs_chat.git"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "version": "2.1.5"
+}
