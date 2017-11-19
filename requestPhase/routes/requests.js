@@ -1,7 +1,10 @@
 var express = require('express');
 
 var router = express.Router();
+
 var timeoutID;
+
+var HashMap = require('hashmap');
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -98,55 +101,57 @@ router.get('/userMatches', function(req, res) {
     // Gather results of matching process after 4s (before timeout)
     timeoutID = setTimeout(function() {
 
-        // Aggregate pipeline to find users that are within request sender's radius
-        req.db.get('UserRequests').aggregate([
-            {
-                $geoNear: {
-                    near: {
-                        type: "Point",
-                        coordinates: [
-                            parseFloat(query.lng),
-                            parseFloat(query.lat)
-                        ]
-                    },
-                    distanceField: "dist.calculated",
-                    maxDistance : parseFloat(query.radius),
-                    spherical: true
+        var listUsers = [];
+
+        if (searchType == "Individual") {
+            // Aggregate pipeline to find users that are within request sender's radius
+            req.db.get('UserRequests').aggregate([
+                {
+                    $geoNear: {
+                        near: {
+                            type: "Point",
+                            coordinates: [
+                                parseFloat(query.lng),
+                                parseFloat(query.lat)
+                            ]
+                        },
+                        distanceField: "dist.calculated",
+                        maxDistance : parseFloat(query.radius),
+                        spherical: true
+                    }
+                },
+                {
+                    $match:{ ClassID : query.classid}
+                },
+                {
+                    $match:{ Status : "Active"}
+                },
+                {
+                    $lookup: {
+                        from: 'UserProfiles',
+                        localField: 'UserID',
+                        foreignField: 'UserID',
+                        as: 'info'
+                    }
+                },
+                {
+                    $unwind : "$info"
                 }
-            },
-            {
-                $match:{ ClassID : query.classid}
-            },
-            {
-                $match:{ Status : "Active"}
-            },
-            {
-                $lookup: {
-                    from: 'UserProfiles',
-                    localField: 'UserID',
-                    foreignField: 'UserID',
-                    as: 'info'
+            ], function(err, data) {
+                if(err) {
+                    console.log("ERROR: initial aggregation");
+                    console.log(err);
+                    throw err;
                 }
-            },
-            {
-                $unwind : "$info"
-            }
-        ], function(err, data) {
-            if(err) {
-                console.log("ERROR: initial aggregation");
-                console.log(err);
-                throw err;
-            }
 
-            // List of users to be returned
-            var listUsers = [];
+                // List of users to be returned
+                data.forEach(function (result) {
 
-            data.forEach(function (result) {
-
-                // Check if request sender is within matchee's range
-                if(result.dist.calculated < parseFloat(result.Radius) && result.dist.calculated !=0 ) {
-                    if (searchType == "Individual" && result.UserID != result.GroupID) {
-                        console.log("Finding individuals that match the user's criteria...");
+                    // Check if request sender is within matchee's range
+                    if(result.UserID != result.GroupID && result.dist.calculated < parseFloat(result.Radius) && result.dist.calculated !=0 ) {
+                        // Push each matched individual into return list
+                        
+                        console.log("Found individual that match the user's criteria...");
                         var userInfo = {
                             "Name" : result.info.Name,
                             "Rating" : result.info.Rating,
@@ -156,91 +161,152 @@ router.get('/userMatches', function(req, res) {
                             "Location" : result.loc.coordinates,
                             "Distance away(m)" : result.dist.calculated
                         };
+
+                        console.log(JSON.stringify(userInfo));
+
                         listUsers.push(userInfo);
+                    };
+                });
+
+                // No matches found
+                if(JSON.stringify(listUsers) == "[]") {
+                    res.json({"Msg" : 'No matches found'});
+                }
+                // Return matches
+                else {
+                    res.json({
+                        "Matches" : listUsers,
+                        "UserPortNum" : userPortNum
+                    });
+                }
+
+            });
+
+        }
+
+        else if (searchType == "Group") {
+            // Aggregate pipeline to find users that are within request sender's radius
+            req.db.get('UserRequests').aggregate([
+                {
+                    $geoNear: {
+                        near: {
+                            type: "Point",
+                            coordinates: [
+                                parseFloat(query.lng),
+                                parseFloat(query.lat)
+                            ]
+                        },
+                        distanceField: "dist.calculated",
+                        maxDistance : parseFloat(query.radius),
+                        spherical: true
                     }
-                    else if (searchType == "Group" && result.UserID == result.GroupID) {
-                        console.log("Finding groups that match the user's criteria...");
+                },
+                {
+                    $match:{
+                        ClassID: query.classid,
+                        GroupID: {$exists: true} 
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'UserProfiles',
+                        localField: 'UserID',
+                        foreignField: 'UserID',
+                        as: 'info'
+                    }
+                },
+                {
+                    $unwind: "$info"
+                },
+                {
+                    $sort: {Group : 1}
+                }
+            ], function(err, data) {
+                if(err) {
+                    console.log("ERROR: initial aggregation");
+                    console.log(err);
+                    throw err;
+                }
 
-                        var groupInfo = {};
-                        
-                        var leaderInfo = {
-                            "Name" : result.info.Name,
-                            "Rating" : result.info.Rating,
-                            "Year" : result.info.Year,
-                            "Major" : result.info.Major,
-                            "UserID" : result.UserID,
-                            "Location" : result.loc.coordinates,
-                            "Distance away(m)" : result.dist.calculated
-                        };
+                var map = new HashMap();
 
-                        groupInfo["Leader"] = leaderInfo;
+                // Add all possible users to respectives groups in map
+                data.forEach(function (result) {
+                    if (map.has(result.GroupID)) {
+                        var set = map.get(result.GroupID);
+                        set.push(result);
+                        map.set(result.GroupID, set);
+                    }
+                    else {
+                        var set = [];
+                        set.push(result);
+                        map.set(result.GroupID, set);
+                    }
+                });
 
-                        // Find members of the group
-                        groupInfo["Members"] = req.db.get('UserRequests').aggregate([
-                            {
-                                $match:{ GroupID : result.GroupID }
-                            },
-                            {
-                                $match:{ Status : "Matched" }
-                            },
-                            {
-                                $lookup: {
-                                    from: 'UserProfiles',
-                                    localField: 'UserID',
-                                    foreignField: 'UserID',
-                                    as: 'info'
-                                }
-                            },
-                            {
-                                $unwind : "$info"
-                            }
-                            ], function(err, memberData) {
-                                
-                                var listMembers = [];
+                var keySet = map.keys();
 
-                                var count = 1;
+                // Process each individual group
+                for (var i = 0; i < keySet.length; i++) {
+                    var groupMembers = map.get(keySet[i]);
 
-                                memberData.forEach(function (result) {
+                    var leader;
+                    var members = [];
+                    var keepGroup = false;
 
-                                    console.log("Member #" + count + ": " + result.info.Name + ", " + result.UserID);
+                    // Process each user in the group
+                    for (var j = 0; j < groupMembers.length; j++) {
+                        var user = groupMembers[j];
 
-                                    count += 1;
+                        var userInfo = {
+                            "Name" : user.info.Name,
+                            "Rating" : user.info.Rating,
+                            "Year" : user.info.Year,
+                            "Major" : user.info.Major,
+                            "UserID" : user.UserID,
+                            "Location" : user.loc.coordinates,
+                            "Distance away(m)" : user.dist.calculated
+                        }
 
-                                    var member = {
-                                        "Name" : result.info.Name,
-                                        "Rating" : result.info.Rating,
-                                        "Year" : result.info.Year,
-                                        "Major" : result.info.Major,
-                                        "UserID" : result.UserID
-                                    };
-                                    listMembers.push(member);
-                                });
-
-                                groupInfo["Members"] = listMembers;
-                                return listMembers;
-                            });
-
-                        listUsers.push(groupInfo);
-                        
+                        // User is group member, add to list of members
+                        if (user.GroupID != user.UserID) {
+                            members.push(userInfo);
+                        }
+                        // User is group leader and is within range of request sender, making this a valid return group
+                        else if (user.GroupID == user.UserID && user.dist.calculated < parseFloat(user.Radius) && user.dist.calculated != 0) {
+                            leader = userInfo;
+                            keepGroup = true;
                         }
                     }
-                });
-        
 
-            // No matches found
-            if(JSON.stringify(listUsers) == "[]") {
-                res.json({"Msg" : 'No matches found'});
-            }
-            // Return matches
-            else {
-                res.json({
-                    "Matches" : listUsers,
-                    "UserPortNum" : userPortNum
-                });
-            }
-        });
+                    if (keepGroup) {
+                        var groupInfo = {
+                            "Leader" : leader,
+                            "Members" : members
+                        }
+                        listUsers.push(groupInfo);
+                    }
+                }
+            
+
+                // No matches found
+                if(JSON.stringify(listUsers) == "[]") {
+                    res.json({"Msg" : 'No matches found'});
+                }
+                // Return matches
+                else {
+                    res.json({
+                        "Matches" : listUsers,
+                        "UserPortNum" : userPortNum
+                    });
+                }
+
+            });
+
+        }        
+
     }, 4000);
- });   
+ });
 
 
 /* Abort Match Process */
