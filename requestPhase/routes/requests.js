@@ -25,7 +25,7 @@ router.get('/', function(req, res, next) {
              ],
              "UserPortNum" : request sender's port number for socket.io}
 */
-router.get('/userMatches', function(req, res) {
+router.post('/userMatches', function(req, res) {
 
     /* Testing purposes only
     var dist = getDistanceFromLatLonInKm(1,1,3,3);
@@ -36,9 +36,9 @@ router.get('/userMatches', function(req, res) {
 
     // CREATE NEW USER-PORT ASSIGNMENT, IF NECESSARY
     var userPortNum = "";
-    db.get('userIDPort').findOne({"UserID" : req.query.userid}, function(err, result) {
+    db.get('userIDPort').findOne({"UserID" : req.body.userid}, function(err, result) {
         if (result == null) {
-            console.log("User (" + req.query.userid + ") does not have a port number assigned");
+            console.log("User (" + req.body.userid + ") does not have a port number assigned");
 
             db.get('userIDPort').find({}, {sort: {Port : -1}, limit : 1}, function(err, result) {
                 console.log("Max port number is: " + result[0]["Port"]);
@@ -46,20 +46,20 @@ router.get('/userMatches', function(req, res) {
                 console.log("New Port Number: " + portNum);
 
                 var entry = {
-                    "UserID" : req.query.userid,
+                    "UserID" : req.body.userid,
                     "Port" : portNum
                 }
 
                 db.get('userIDPort').insert(entry);
                 
-                console.log("User (" + req.query.userid + ") has been assigned port number: " + portNum + "\n");
+                console.log("User (" + req.body.userid + ") has been assigned port number: " + portNum + "\n");
 
                 // Return port num to user
                 userPortNum = portNum;
             });
         }
         else {
-            console.log("This user (" + req.query.userid + ") is assigned port number " + result["Port"])
+            console.log("This user (" + req.body.userid + ") is assigned port number " + result["Port"])
 
             // Return port num to user
             userPortNum = result["Port"];
@@ -75,7 +75,7 @@ router.get('/userMatches', function(req, res) {
     // collection.createIndex({createdAt: 1}, {expireAfterSeconds: 300});
 
     //Extract information from incoming requests and add to UserRequests table
-    var query = req.query;
+    var query = req.body;
     var request = {
         "Type" : "User",
         "UserID" : query.userid,
@@ -279,6 +279,7 @@ router.get('/userMatches', function(req, res) {
                         }
                     }
 
+                    // If this group is a valid matchee, add to return list
                     if (keepGroup) {
                         var groupInfo = {
                             "Leader" : leader,
