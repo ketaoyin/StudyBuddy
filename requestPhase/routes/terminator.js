@@ -38,6 +38,11 @@ router.get('/exitGroup', function(req, res, next) {
 	    });
 	};
 
+	var removeUserDetails = function() {
+		collection.remove({"UserID" : userID});
+	    db.get('userIDPort').remove({"UserID" : userID});
+	};
+
 	collection.aggregate([
 		 {
 		 	$match:{ GroupID : groupID } 
@@ -58,17 +63,16 @@ router.get('/exitGroup', function(req, res, next) {
 	    console.log('Matchee record found: ' + JSON.stringify(doc));
 
 	    if(doc && doc[0].Status == 'Active' && doc[0].UserID == doc[0].GroupID && data.length > 2) {
-	    	console.log('Matchee is group leader')
+	    	console.log('Matchee is group leader of group size > 2')
 	    	//choose new group leader etc
 
 	    }
 
 	    else {
-	    	killPorts();
+	    	//killPorts();
+	    	//removeUserDetails();
 	    	if(data.length == 0) {
 	    		console.log('Last person leaving group. Dispatch rating requests to all')
-	    			
-	    		//Remove request,userid from dbs
 
 	    		//Ratings - Ketao
 	    		
@@ -79,17 +83,29 @@ router.get('/exitGroup', function(req, res, next) {
 	    	if(doc[0].UserID == doc[0].GroupID && data.length == 2) {
 	    		//remove both requests
 	    		console.log('Matchee is group leader and size is 2')	
-	    		
-	    		//Remove request,userid from dbs
-	    		// send message to other member
 
+	    		   //send message to other member
+
+
+
+	    		   /*db.get('userIDPort').findOne({"GroupID": groupID}, function(err, document) {
+
+				    var server = ioServer.listen(document.Port);
+					console.log('userIDPort' + document.Port)
+					server.on("connection", (socket) => {
+					    console.log(`Client connected [id=${socket.id}]`);
+
+					    socket.emit("msg", "Booyah Sucker,leader left ya to rot!");
+
+					    socket.on("disconnect", () => {
+					        console.log(`Client gone [id=${socket.id}]`);
+						});
+					});
+				});*/
 	    	}
 
 	    	else {
-	    		console.log('Matchee is group member')		
-	    	    //Remove request,userid from dbs
-	    		
-
+	    		console.log('Matchee is group member')
 	    	}
 	    }
 	  });	
