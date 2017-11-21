@@ -1,5 +1,6 @@
 var express = require('express');
 var router = express.Router();
+var cp = require('child_process');
 var ioServer = require('socket.io');
 var ioClient = require('socket.io-client');
 
@@ -12,7 +13,6 @@ router.get('/exitGroup', function(req, res, next) {
 	var collection = db.get('UserRequests');
 	var userID = req.query.userid;
 	var groupID = req.query.groupid;
-	var groupTable = db.get('GroupTable');
 	
 	var groupTableEntry = {
 	 "UserID" : userID,
@@ -43,6 +43,11 @@ router.get('/exitGroup', function(req, res, next) {
 	    db.get('userIDPort').remove({"UserID" : userID});
 	};
 
+	function generateRandom(min, max) {
+	    var num = Math.floor(Math.random() * (max - min + 1)) + min;
+	    return (num == userID) ? generateRandom(min, max) : num;
+	};
+
 	collection.aggregate([
 		 {
 		 	$match:{ GroupID : groupID } 
@@ -62,15 +67,73 @@ router.get('/exitGroup', function(req, res, next) {
 
 	    console.log('Matchee record found: ' + JSON.stringify(doc));
 
+	    
 	    if(doc && doc[0].Status == 'Active' && doc[0].UserID == doc[0].GroupID && data.length > 2) {
 	    	console.log('Matchee is group leader of group size > 2')
-	    	//choose new group leader etc
 
+	    	//choose new group leader etc
+	    	var randNum = generateRandom(1,data.length);
+	    	var newLeader = data[randNum-1];
+
+	    	//update groupID's of all members
+
+	    	console.log('newLeader is' + newLeader.UserID);
+	    	data.forEach(function (result) {
+	    		collection.update({}, {$set : {"GroupID" : newLeader.UserID}},{multi:true});
+	    	});
+
+	    	//change newLeader status
+	    	collection.update({"UserID": newLeader.UserID}, {$set : {"Status" : "Active"}});
+	    
+	    	
+	    	//start chat on new port
+	    	 db.get('userIDPort').findOne({"UserID": newLeader.UserID}, function(err, document) {
+		    	var args = []
+
+				args.push((parseInt(document.Port) + 1000).toString());
+				console.log(args[0]);
+		    	cp.fork('../simple-nodejs-chat' + '/server.js', args);
+		    
+
+	    	 //notify all other users with list of updated members and new chat port
+	    	 data.forEach(function (result) {
+	    	 	var replyToAll = {
+			    	"Msg" : "Booyah Sucker,leader left ya to rot!",
+			    	"NewChatPort" : args[0]
+	    	 	};
+
+	    	 	if(result.UserID != userID) {
+	    	 		  db.get('userIDPort').findOne({"UserID": result.UserID}, function(err, document) {
+					  	 if(err) {
+		                    console.log("ERROR: initial aggregation");
+		                    console.log(err);
+		                    throw err;
+               			 }
+
+					    var server = ioServer.listen(document.Port);
+						console.log('userIDPort' + document.Port)
+						server.on("connection", (socket) => {
+						    console.log(`Client connected [id=${socket.id}]`);
+
+						    socket.emit("msg", replyToAll);
+
+						    socket.on("disconnect", () => {
+						        console.log(`Client gone [id=${socket.id}]`);
+							});
+						});
+					});
+	    	 	}
+	    	 	});
+	    	 });
+
+	    	 killPorts();
+	         removeUserDetails();
+
+	         res.json("Thank you for using StudyBuddy!")
 	    }
 
 	    else {
-	    	//killPorts();
-	    	//removeUserDetails();
+	    	
 	    	if(data.length == 0) {
 	    		console.log('Last person leaving group. Dispatch rating requests to all')
 
@@ -84,31 +147,46 @@ router.get('/exitGroup', function(req, res, next) {
 	    		//remove both requests
 	    		console.log('Matchee is group leader and size is 2')	
 
-	    		   //send message to other member
+	    		   //send message to other member to find other members if need be
+	    		   collection.findOne({"UserID": {'$ne':groupID }}, function(err, cursor) {
+	    		   	   if(err) {
+		                    console.log("ERROR: initial aggregation");
+		                    console.log(err);
+		                    throw err;
+		                } 	
+					  db.get('userIDPort').findOne({"UserID": cursor.UserID}, function(err, document) {
+					  	 if(err) {
+		                    console.log("ERROR: initial aggregation");
+		                    console.log(err);
+		                    throw err;
+               			 }
 
+					    var server = ioServer.listen(document.Port);
+						console.log('userIDPort' + document.Port)
+						server.on("connection", (socket) => {
+						    console.log(`Client connected [id=${socket.id}]`);
 
+						    socket.emit("msg", "Booyah Sucker,leader left ya to rot!");
 
-	    		   /*db.get('userIDPort').findOne({"GroupID": groupID}, function(err, document) {
-
-				    var server = ioServer.listen(document.Port);
-					console.log('userIDPort' + document.Port)
-					server.on("connection", (socket) => {
-					    console.log(`Client connected [id=${socket.id}]`);
-
-					    socket.emit("msg", "Booyah Sucker,leader left ya to rot!");
-
-					    socket.on("disconnect", () => {
-					        console.log(`Client gone [id=${socket.id}]`);
+						    socket.on("disconnect", () => {
+						        console.log(`Client gone [id=${socket.id}]`);
+							});
 						});
 					});
-				});*/
+				});
+
+	    		res.json("Thank you for using StudyBuddy!")
 	    	}
 
 	    	else {
 	    		console.log('Matchee is group member')
+	    		res.json("Thank you for using StudyBuddy!")
 	    	}
 	    }
+
 	  });	
+		//killPorts();
+	    //removeUserDetails();
    });    
 });	
 

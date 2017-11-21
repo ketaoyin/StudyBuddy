@@ -2,3 +2,6 @@ AcceptPhase:
 	Backend:
 		- When two people are paired, change both of their group ID to correct group ID (the one that's been passed around) in server
 		- When two people are paired, remove timeout on their requests in requests table
+
+TerminatePhase:
+		- Kill listening ports(2) and chat port(1) when users leave		

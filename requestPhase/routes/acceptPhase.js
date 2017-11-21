@@ -3,6 +3,7 @@ var cp = require('child_process');
 var router = express.Router();
 var ioServer = require('socket.io');
 var ioClient = require('socket.io-client');
+var tcpPortUsed = require('tcp-port-used');
 
 // Network interfaces
 var address,
@@ -128,8 +129,7 @@ router.get('/receiveMsgFromServer', function(req, res, next) {
    var userID = req.query.userid;
    
    req.db.get('userIDPort').findOne({"UserID": userID}, function(err, document) {
-
-	   var clientMsg = ioClient.connect(serverIP + ":" + document.Port);
+     var clientMsg = ioClient.connect(serverIP + ":" + document.Port);
 
 	   clientMsg.on("msg", (msg) => res.json(msg));
    });	
@@ -153,12 +153,22 @@ router.get('/receiveMsgFromServer', function(req, res, next) {
 router.post('/respondToPairReq', function(req, res, next) {
 	var db = req.db;
 	var query = req.body;
+	var collection = db.get('UserRequests');
 
 	var args = []
 	args.push(query.newChatPort)
 
 	//Server sends acknowledgment to User A
 	if(parseInt(query.value) == 1) {
+
+		//insert groupID field to users (myid and userid)
+		db.get('UserRequests').update({"UserID": query.userid}, {$set : {"GroupID" : query.newGroupID}});
+		db.get('UserRequests').update({"UserID": query.myid}, {$set : {"GroupID" : query.newGroupID}});
+
+		//remove timestamps
+		db.get('UserRequests').update({"UserID": query.myid}, {$unset : {"createdAt" : ""}});
+		db.get('UserRequests').update({"UserID": query.userid}, {$unset : {"createdAt" : ""}});
+  
 		console.log('enter here')
 		cp.fork('../simple-nodejs-chat' + '/server.js', args);
 		db.get('userIDPort').findOne({"UserID": req.body.userid}, function(err, document) {
