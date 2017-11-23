@@ -96,24 +96,60 @@ router.post('/invitePairReq', function(req, res, next) {
 
 			    //look up which port user B is listening and send myInfo
 			    db.get('userIDPort').findOne({"UserID": userID}, function(err, document) {
+				var tcpPortUsed = require('tcp-port-used');
 
-				    var server = ioServer.listen(document.Port);
-					console.log('userIDPort' + document.Port)
-					server.on("connection", (socket) => {
-					    console.log(`Client connected [id=${socket.id}]`);
+				console.log('userIDPort' + document.Port)
 
-					    socket.emit("msg", userInfo);
-
-					    socket.on("disconnect", () => {
-					        console.log(`Client gone [id=${socket.id}]`);
+				tcpPortUsed.check(parseInt(document.Port), '127.0.0.1')
+					.then(function(inUse) {
+					 
+				    console.log(inUse)	    
+				if(!inUse) {
+						var server = ioServer.listen(document.Port);
+						server.on("connection", (socket) => {
+							//console.log('socket object' + socket)
+						    console.log(`Client connected [id=${socket.id}]`);
+						   
+						    socket.emit("msg", userInfo);
+						 
+						   socket.on("disconnect", () => {
+						    	 console.log('problem6')
+						        console.log(`Client gone [id=${socket.id}]`);
+							});
+						 
 						});
-					});
-				});
-		   }); 
+				  }
+
+				else {
+					db.get('userIDPort').find({}, {sort: {Port : -1}, limit : 1}, function(err, result) {
+	             		var portNum = (parseInt(result[0]["Port"], 10) + 1).toString();
+
+					  	db.get('userIDPort').update({"UserID": userID}, {$set : {"Port" : portNum}});
+
+						var server = ioServer.listen(portNum);
+						server.on("connection", (socket) => {
+							//console.log('socket object' + socket)
+						    console.log(`Client connected [id=${socket.id}]`);
+						    
+						    socket.emit("msg", userInfo);
+					
+						   socket.on("disconnect", () => {
+						    	 console.log('problem6')
+						        console.log(`Client gone [id=${socket.id}]`);
+							});
+						 
+						});
+					  });
+		    	}
+			},
+			  function(err) {
+				    console.error('Error on check:', err.message);
+			  });
+	     	});
+		  }); 
 
 	    res.json("Information sent to Client!Please wait for response");
 	  }
-
 	   else
 	   	res.json("User not active anymore! Please choose another Buddy!");
  });
@@ -131,7 +167,11 @@ router.get('/receiveMsgFromServer', function(req, res, next) {
    req.db.get('userIDPort').findOne({"UserID": userID}, function(err, document) {
      var clientMsg = ioClient.connect(serverIP + ":" + document.Port);
 
-	   clientMsg.on("msg", (msg) => res.json(msg));
+	   clientMsg.on("msg", function(msg) {
+	   		clientMsg.disconnect();
+	   		res.json(msg);
+	  });
+
    });	
 });
 
