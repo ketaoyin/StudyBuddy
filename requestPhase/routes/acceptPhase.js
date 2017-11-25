@@ -18,10 +18,21 @@ router.get('/', function(req, res, next) {
   res.json('Accept Phase');
 });
 
-//User A invites B to pair - Step 1,1.5,2
+//User A invites B to pair
 /*
-	Input: myid - invite sender's user ID
-		   userid - invitee's user ID
+	Input:
+		myid - invite sender's user ID
+		userid - invitee's user ID
+	Output (What User B receives in message from server):
+		{
+			Name - name of User A
+			Rating - rating of User A
+			Year - year of User A
+			Major - major of User A
+			Location - [lng, lat]
+			NewGroupID - group ID for all members of this group
+			NewChatPort - chat port for all members of this group	
+		}
 */
 router.post('/invitePairReq', function(req, res, next) {
 	var db = req.db;
@@ -91,11 +102,12 @@ router.post('/invitePairReq', function(req, res, next) {
 		        	}
 		        });
 
-
 		        console.log('Matchee info package: ' + JSON.stringify(userInfo))
 
 			    //look up which port user B is listening and send myInfo
 			    db.get('userIDPort').findOne({"UserID": userID}, function(err, document) {
+
+			    	
 				var tcpPortUsed = require('tcp-port-used');
 
 				console.log('userIDPort' + document.Port)
@@ -103,7 +115,7 @@ router.post('/invitePairReq', function(req, res, next) {
 				tcpPortUsed.check(parseInt(document.Port), '127.0.0.1')
 					.then(function(inUse) {
 					 
-				    console.log(inUse)	    
+				    console.log(inUse);
 				if(!inUse) {
 						var server = ioServer.listen(document.Port);
 						server.on("connection", (socket) => {
@@ -178,17 +190,19 @@ router.get('/receiveMsgFromServer', function(req, res, next) {
 
 //User B responds to user A's pair request -- sends user A's and B's userid and response(1 or 0)
 /*
-	Input: value - 1 for accepting invite, 0 for reject
-		   newGroupID - new group ID received from server during HS2
-		   newChatPort - new chat port received from server during HS2
-		   myid - respondent's user ID
-		   userid - invite sender's user ID
-	Output: {
-				Response: 1 or 0, 1 for accepted, 0 for rejected
-				Msg: message, according to Response
-				NewGroupID: new group ID, if Response == 1
-				NewChatPort: new chat port, if Response == 1
-			}
+	Input:
+		value - 1 for accepting invite, 0 for reject
+		newGroupID - new group ID received from server during HS2
+		newChatPort - new chat port received from server during HS2
+		myid - respondent's user ID
+		userid - invite sender's user ID
+	Output (What user A receives in message from server after User B responds):
+		{
+			Response - 1 or 0, 1 for accepted, 0 for rejected
+			Msg - message, according to Response
+			NewGroupID - group ID for all members of this group, if Response == 1
+			NewChatPort - chat port for all members of this group, if Response == 1
+		}
 */
 router.post('/respondToPairReq', function(req, res, next) {
 	var db = req.db;
