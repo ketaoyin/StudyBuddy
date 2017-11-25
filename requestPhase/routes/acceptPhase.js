@@ -81,90 +81,107 @@ router.post('/invitePairReq', function(req, res, next) {
 		        }
 
 		        // Append correct Group ID and chat port ID number (group leader's port + 1000)
-		        db.get('UserRequests').find({"UserID" : userID}, function(err, document) {
+		        db.get('UserRequests').findOne({"UserID" : userID}, function(err, document) {
+		        	
+		        	console.log("USER B USERID: " + document.UserID);
+		        	console.log("USER B GROUPID: " + document.GroupID);
+
 		        	// Matchee should be group leader
 		        	if (document.GroupID == userID) {
 
-		        		console.log('here' + document.GroupID)
+		        		console.log("Matchee would be group leader");
 		        		userInfo["NewGroupID"] = document.GroupID;
 
 		        		db.get('userIDPort').findOne({"UserID" : userID}, function(err, document) {
-		        			userInfo["NewChatPort"] = (parseInt(document.Port) + 1000).toString();
+
+		        			if (document.ChatPort == null) {
+		        				console.log("Leader has no chat port assigned");
+
+		        				var newChatPort = (parseInt(document.Port) + 1000).toString();
+		        				userInfo["NewChatPort"] = newChatPort;
+		        				db.get('userIDPort').update({"UserID": userID}, {$set : {"ChatPort" : newChatPort}});
+		        				
+		        				console.log("Leader current chat port: " + newChatPort);
+		        			}
+		        			else {
+		        				userInfo["NewChatPort"] = document.ChatPort;
+
+		        				console.log("Leader current chat port: " + document.ChatPort);
+		        			}
+
 		        		});
 		        	}
 		        	// Matcher should be group leader
 		        	else {
+		        		console.log("Matcher would be group leader");
 		        		userInfo["NewGroupID"] = myID;
 
 		        		db.get('userIDPort').findOne({"UserID" : myID}, function(err, document) {
-		        			userInfo["NewChatPort"] = (parseInt(document.Port) + 1000).toString();
+
+		        			if (document.ChatPort == null) {
+		        				console.log("Leader has no chat port assigned");
+
+		        				var newChatPort = (parseInt(document.Port) + 1000).toString();
+		        				userInfo["NewChatPort"] = newChatPort;
+		        				db.get('userIDPort').update({"UserID": myID}, {$set : {"ChatPort" : newChatPort}});
+		        				
+		        				console.log("Leader current chat port: " + newChatPort);
+		        			}
+		        			else {
+		        				userInfo["NewChatPort"] = document.ChatPort;
+
+		        				console.log("Leader current chat port: " + document.ChatPort);
+		        			}
+
 		        		});
 		        	}
 		        });
 
-		        console.log('Matchee info package: ' + JSON.stringify(userInfo))
 
-			    //look up which port user B is listening and send myInfo
-			    db.get('userIDPort').findOne({"UserID": userID}, function(err, document) {
+		        // Finds new port number for message receiver to use
+		        db.get('userIDPort').find({}, {sort: {Port : -1}, limit : 1}, function(err, result) {
+             		var newPortNum = (parseInt(result[0]["Port"], 10) + 1).toString();
 
-			    	
-				var tcpPortUsed = require('tcp-port-used');
+             		console.log("NEW RECEIVER PORT: " + newPortNum);
 
-				console.log('userIDPort' + document.Port)
+	             	//look up which port user B is listening on
+				    db.get('userIDPort').findOne({"UserID": userID}, function(err, document) {
+				    	var currPortNum = document.Port;
+						console.log("CURRENT USER PORT: " + currPortNum);
 
-				tcpPortUsed.check(parseInt(document.Port), '127.0.0.1')
-					.then(function(inUse) {
-					 
-				    console.log(inUse);
-				if(!inUse) {
-						var server = ioServer.listen(document.Port);
+						// Add new port number to response object
+						userInfo["UserPortNum"] = newPortNum;
+
+						console.log("Matchee ID: " + userID + "\tMatchee PortNum: " + currPortNum);
+						console.log('Matchee info package: ' + JSON.stringify(userInfo));
+
+						var server = ioServer.listen(currPortNum);
 						server.on("connection", (socket) => {
 							//console.log('socket object' + socket)
-						    console.log(`Client connected [id=${socket.id}]`);
+							console.log(`Client connected [id=${socket.id}]`);
 						   
 						    socket.emit("msg", userInfo);
-						 
-						   socket.on("disconnect", () => {
-						    	 console.log('problem6')
+							
+							// Update database with new port number for user
+				  			db.get('userIDPort').update({"UserID": userID}, {$set : {"Port" : newPortNum}});
+
+						    socket.on("disconnect", () => {
 						        console.log(`Client gone [id=${socket.id}]`);
 							});
 						 
 						});
-				  }
 
-				else {
-					db.get('userIDPort').find({}, {sort: {Port : -1}, limit : 1}, function(err, result) {
-	             		var portNum = (parseInt(result[0]["Port"], 10) + 1).toString();
+		     		});
 
-					  	db.get('userIDPort').update({"UserID": userID}, {$set : {"Port" : portNum}});
-
-						var server = ioServer.listen(portNum);
-						server.on("connection", (socket) => {
-							//console.log('socket object' + socket)
-						    console.log(`Client connected [id=${socket.id}]`);
-						    
-						    socket.emit("msg", userInfo);
-					
-						   socket.on("disconnect", () => {
-						    	 console.log('problem6')
-						        console.log(`Client gone [id=${socket.id}]`);
-							});
-						 
-						});
-					  });
-		    	}
-			},
-			  function(err) {
-				    console.error('Error on check:', err.message);
-			  });
-	     	});
-		  }); 
-
-	    res.json("Information sent to Client!Please wait for response");
-	  }
-	   else
-	   	res.json("User not active anymore! Please choose another Buddy!");
- });
+				});      
+			    
+		  	}); 
+		
+			res.json("Information sent to Client!Please wait for response");
+	  	}
+	   	else
+	   		res.json("User not active anymore! Please choose another Buddy!");
+ 	});
 });
 
 // 1.User B receives req and can view User A's profile -- should be continously listening on client port
@@ -173,18 +190,17 @@ router.post('/invitePairReq', function(req, res, next) {
 	Input: userid = user ID
 */
 router.get('/receiveMsgFromServer', function(req, res, next) {
-   var port;
-   var userID = req.query.userid;
+   	var port;
+   	var userID = req.query.userid;
    
-   req.db.get('userIDPort').findOne({"UserID": userID}, function(err, document) {
-     var clientMsg = ioClient.connect(serverIP + ":" + document.Port);
+   	req.db.get('userIDPort').findOne({"UserID": userID}, function(err, document) {
+    	var clientMsg = ioClient.connect(serverIP + ":" + document.Port);
 
-	   clientMsg.on("msg", function(msg) {
+		clientMsg.on("msg", function(msg) {
 	   		clientMsg.disconnect();
 	   		res.json(msg);
-	  });
-
-   });	
+	  	});
+   	});	
 });
 
 
@@ -223,35 +239,89 @@ router.post('/respondToPairReq', function(req, res, next) {
 		db.get('UserRequests').update({"UserID": query.myid}, {$unset : {"createdAt" : ""}});
 		db.get('UserRequests').update({"UserID": query.userid}, {$unset : {"createdAt" : ""}});
   
-		console.log('enter here')
-		cp.fork('../simple-nodejs-chat' + '/server.js', args);
-		db.get('userIDPort').findOne({"UserID": req.body.userid}, function(err, document) {
 
-		    var server = ioServer.listen(document.Port);
+		// Spin up chat server, if not already running
+		var tcpPortUsed = require('tcp-port-used');
 
-		    console.log("User ID: " + req.body.userid + " Port: " + document.Port)
-			server.on("connection", (socket) => {
-			    console.info(`Client connected [id=${socket.id}]`);
+		console.log("GROUP CHAT PORT: " + query.newChatPort);
 
-			    var reply = {
+		tcpPortUsed.check(parseInt(query.newChatPort), address).then(function(inUse) {
+			console.log("Chat port in use?: " + inUse)
+
+			if(!inUse) {
+				cp.fork('../simple-nodejs-chat' + '/server.js', args);
+			}
+		});
+
+
+		// db.get('userIDPort').findOne({"UserID": req.body.userid}, function(err, document) {
+
+		//     var server = ioServer.listen(document.Port);
+
+		    
+		// 	server.on("connection", (socket) => {
+		// 	    console.info(`Client connected [id=${socket.id}]`);
+
+		// 	    var reply = {
+		// 	    	"Response" : "1",
+		// 	    	"Msg" : "Congrats!User B has accepted your request",
+		// 	    	"NewGroupID" : query.newGroupID,
+		// 	    	"NewChatPort" : query.newChatPort
+		// 	    }
+
+		// 	    socket.emit("msg", reply);
+		// 	    // socket.emit("msg", "Congrats!User B has accepted your request");
+
+		// 	    socket.on("disconnect", () => {
+		// 	        console.info(`Client gone [id=${socket.id}]`);
+		// 		});
+		// 	});
+		// });
+
+
+
+		// Finds new port number for message receiver to use
+        db.get('userIDPort').find({}, {sort: {Port : -1}, limit : 1}, function(err, result) {
+     		var newPortNum = (parseInt(result[0]["Port"], 10) + 1).toString();
+
+     		console.log("NEW RECEIVER PORT: " + newPortNum);
+
+         	//look up which port user B is listening on
+		    db.get('userIDPort').findOne({"UserID": req.body.userid}, function(err, document) {
+		    	var currPortNum = document.Port;
+		    	console.log("User ID: " + req.body.userid + " Port: " + document.Port)
+
+				var reply = {
 			    	"Response" : "1",
 			    	"Msg" : "Congrats!User B has accepted your request",
 			    	"NewGroupID" : query.newGroupID,
-			    	"NewChatPort" : query.newChatPort
+			    	"NewChatPort" : query.newChatPort,
+			    	"UserPortNum" : newPortNum
 			    }
 
-			    socket.emit("msg", reply);
-			    // socket.emit("msg", "Congrats!User B has accepted your request");
+				var server = ioServer.listen(currPortNum);
+				server.on("connection", (socket) => {
+					//console.log('socket object' + socket)
+					console.log(`Client connected [id=${socket.id}]`);
+				   
+				    socket.emit("msg", reply);
+					
+					// Update database with new port number for user
+		  			db.get('userIDPort').update({"UserID": req.body.userid}, {$set : {"Port" : newPortNum}});
 
-			    socket.on("disconnect", () => {
-			        console.info(`Client gone [id=${socket.id}]`);
+				    socket.on("disconnect", () => {
+				        console.log(`Client gone [id=${socket.id}]`);
+					});
+				 
 				});
-			});
-		});	 
+
+     		});
+
+		});
+
 
 		res.json("Congrats! You've been paired with User A");
 
-		// ToDo: all members' requests do NOT timeout
 		// User B (respondent) is the group leader
 		if (query.myid == query.newGroupID) {
 			db.get('UserRequests').update({"UserID": req.body.userid}, {$set : {"Status" : "Grouped"}});
@@ -264,30 +334,68 @@ router.post('/respondToPairReq', function(req, res, next) {
 		else {
 			console.log("ERROR: respondToPairReq unexpected behavior");
 		}
-		
 	}
 
 	else {
-		db.get('userIDPort').findOne({"UserID": req.body.userid}, function(err, document) {
+		// db.get('userIDPort').findOne({"UserID": req.body.userid}, function(err, document) {
 
-		    var server = ioServer.listen(document.Port);
+		//     var server = ioServer.listen(document.Port);
 
-			server.on("connection", (socket) => {
-			    console.info(`Client connected [id=${socket.id}]`);
+		// 	server.on("connection", (socket) => {
+		// 	    console.info(`Client connected [id=${socket.id}]`);
 
-			    var reply = {
+		// 	    var reply = {
+		// 	    	"Response" : "0",
+		// 	    	"Msg" : "Sorry! User B declined your request. Try looking for another buddy!"
+		// 	    }
+
+		// 	    socket.emit("msg", reply);
+		// 	    // socket.emit("msg", "Sorry! User B declined your request. Try looking for another buddy! ");
+
+		// 	    socket.on("disconnect", () => {
+		// 	        console.info(`Client gone [id=${socket.id}]`);
+		// 	    });
+		// 	});
+		// });	 
+
+
+		// Finds new port number for message receiver to use
+        db.get('userIDPort').find({}, {sort: {Port : -1}, limit : 1}, function(err, result) {
+     		var newPortNum = (parseInt(result[0]["Port"], 10) + 1).toString();
+
+     		console.log("NEW RECEIVER PORT: " + newPortNum);
+
+         	//look up which port user B is listening on
+		    db.get('userIDPort').findOne({"UserID": req.body.userid}, function(err, document) {
+		    	var currPortNum = document.Port;
+		    	console.log("User ID: " + req.body.userid + " Port: " + document.Port)
+
+				var reply = {
 			    	"Response" : "0",
-			    	"Msg" : "Sorry! User B declined your request. Try looking for another buddy!"
+			    	"Msg" : "Sorry! User B declined your request. Try looking for another buddy!",
+			    	"UserPortNum" : newPortNum
 			    }
 
-			    socket.emit("msg", reply);
-			    // socket.emit("msg", "Sorry! User B declined your request. Try looking for another buddy! ");
+				var server = ioServer.listen(currPortNum);
+				server.on("connection", (socket) => {
+					//console.log('socket object' + socket)
+					console.log(`Client connected [id=${socket.id}]`);
+				   
+				    socket.emit("msg", reply);
+					
+					// Update database with new port number for user
+		  			db.get('userIDPort').update({"UserID": req.body.userid}, {$set : {"Port" : newPortNum}});
 
-			    socket.on("disconnect", () => {
-			        console.info(`Client gone [id=${socket.id}]`);
-			    });
-			});
-		});	 
+				    socket.on("disconnect", () => {
+				        console.log(`Client gone [id=${socket.id}]`);
+					});
+				 
+				});
+
+     		});
+
+		});
+
 		res.json("Thanks for responding to User A!");
 	}
 		
