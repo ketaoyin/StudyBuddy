@@ -31,7 +31,8 @@ router.get('/', function(req, res, next) {
 			Major - major of User A
 			Location - [lng, lat]
 			NewGroupID - group ID for all members of this group
-			NewChatPort - chat port for all members of this group	
+			NewChatPort - chat port for all members of this group
+			UserID - user ID of invite sender
 		}
 */
 router.post('/invitePairReq', function(req, res, next) {
@@ -78,6 +79,7 @@ router.post('/invitePairReq', function(req, res, next) {
 	                "Year" : result[0].info.Year,
 	                "Major" : result[0].info.Major,
 	                "Location" : result[0].loc.coordinates,
+	                "UserID" : myID
 		        }
 
 		        // Append correct Group ID and chat port ID number (group leader's port + 1000)
