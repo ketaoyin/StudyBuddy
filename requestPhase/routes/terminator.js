@@ -13,11 +13,11 @@ router.get('/', function(req, res, next) {
 		userid - user who is exiting the group
 		groupid - group id of user who is leaving the group
 */
-router.get('/exitGroup', function(req, res, next) {
+router.post('/exitGroup', function(req, res, next) {
 	var db = req.db;
 	var collection = db.get('UserRequests');
-	var userID = req.query.userid;
-	var groupID = req.query.groupid;
+	var userID = req.body.userid;
+	var groupID = req.body.groupid;
 
 	var killPorts = function() {
 		var execFile = require('child_process').execFile;
