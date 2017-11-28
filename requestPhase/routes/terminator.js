@@ -99,84 +99,96 @@ router.post('/exitGroup', function(req, res, next) {
 			    	// Change newLeader status
 			    	collection.update({"UserID": newLeader.UserID}, {$set : {"Status" : "Active"}});
 			    	
-			    	// Start new chat server
-			    	db.get('userIDPort').findOne({"UserID": newLeader.UserID}, function(err, document) {
-			    	 	if (err) {
-			    	 		console.log("ERROR: starting new chat server for new group leader");
-			    	 		console.log(err);
-			    	 		throw err;
-			    	 	}
-				    	var args = [];
+			    	// Sends new leader's profile to other members
+			    	db.get('UserProfiles').findOne({"UserID": newLeader.UserID}, function(err, leaderProfile) {
+			    		var leaderProfile = {
+                            "Name" : leaderProfile.Name,
+                            "Rating" : leaderProfile.Rating,
+                            "Year" : leaderProfile.Year,
+                            "Major" : leaderProfile.Major
+                        };
 
-				    	var chatPort;
-
-				    	if (document.ChatPort == null) {
-	        				console.log("New leader has no chat port assigned");
-
-	        				chatPort = (parseInt(document.Port) + 1000).toString();
-	        				db.get('userIDPort').update({"UserID": userID}, {$set : {"ChatPort" : chatPort}});
-	        				
-	        				console.log("New leader current chat port: " + chatPort);
-	        			}
-	        			else {
-	        				console.log("New leader has chat port assigned already");
-	        				charPort = document.ChatPort;
-	        				console.log("New leader current chat port: " + document.ChatPort);
-	        			}
-
-	        			// Spin up new chat server
-						args.push(parseInt(chatPort).toString());
-						console.log(args[0]);
-				    	cp.fork('../simple-nodejs-chat' + '/server.js', args);
-				    
-				    	// Notify all other users with list of updated members and new chat port
-				    	data.forEach(function (result) {
-				    	 	var message = {
-				    	 		"Type" : "Departure",
-						    	"Msg" : "Booyah Sucker, leader left ya to rot!",
-						    	"NewChatPort" : chatPort,
-						    	"UserID" : userID,				// Quitter UserID
-						    	"GroupID" : newLeader.UserID 	// New group ID
-				    	 	};
-
-				    	 	if(result.UserID != userID) {
-				    	 		db.get('userIDPort').findOne({"UserID": result.UserID}, function(err, document) {
-								  	if (err) {
-					                    console.log("ERROR: finding port mappings for rest of members");
-					                    console.log(err);
-					                    throw err;
-			               			}
-
-			               			var server = ioServer.listen(document.Port);
-									console.log('userIDPort' + document.Port);
-
-									server.on("connection", (socket) => {
-									    console.log(`Client connected [id=${socket.id}]`);
-
-									    var newPortNum;
-				               			db.get('userIDPort').find({}, {sort: {Port : -1}, limit : 1}, function(err, portInfo) {
-	             							newPortNum = (parseInt(portInfo[0]["Port"], 10) + 1).toString();
-	             							
-	             							// Update database with new port number for user
-							  				db.get('userIDPort').update({"UserID": result.UserID}, {$set : {"Port" : newPortNum}}, function(err) {
-							  					message["UserPortNum"] = newPortNum;
-							  					socket.emit("msg", message);
-							  					console.log("NEW RECEIVER PORT: " + newPortNum);
-							  				});
-
-	             						});
-
-									    socket.on("disconnect", () => {
-									        console.log(`Client gone [id=${socket.id}]`);
-										});
-									});
-
-								});
+				    	// Start new chat server
+				    	db.get('userIDPort').findOne({"UserID": newLeader.UserID}, function(err, document) {
+				    	 	if (err) {
+				    	 		console.log("ERROR: starting new chat server for new group leader");
+				    	 		console.log(err);
+				    	 		throw err;
 				    	 	}
+					    	var args = [];
 
-						});
+					    	var chatPort;
 
-			    	});
+					    	if (document.ChatPort == null) {
+		        				console.log("New leader has no chat port assigned");
+
+		        				chatPort = (parseInt(document.Port) + 1000).toString();
+		        				db.get('userIDPort').update({"UserID": userID}, {$set : {"ChatPort" : chatPort}});
+		        				
+		        				console.log("New leader current chat port: " + chatPort);
+		        			}
+		        			else {
+		        				console.log("New leader has chat port assigned already");
+		        				charPort = document.ChatPort;
+		        				console.log("New leader current chat port: " + document.ChatPort);
+		        			}
+
+		        			// Spin up new chat server
+							args.push(parseInt(chatPort).toString());
+							console.log(args[0]);
+					    	cp.fork('../simple-nodejs-chat' + '/server.js', args);
+					    
+					    	// Notify all other users with list of updated members and new chat port
+					    	data.forEach(function (result) {
+					    	 	var message = {
+					    	 		"Type" : "Departure",
+							    	"Msg" : "Booyah Sucker, leader left ya to rot!",
+							    	"NewChatPort" : chatPort,
+							    	"UserID" : userID,					// Quitter UserID
+							    	"GroupID" : newLeader.UserID, 		// New group ID
+							    	"LeaderProfile" : leaderProfile 	// Leader's profile
+					    	 	};
+
+					    	 	if(result.UserID != userID) {
+					    	 		db.get('userIDPort').findOne({"UserID": result.UserID}, function(err, document) {
+									  	if (err) {
+						                    console.log("ERROR: finding port mappings for rest of members");
+						                    console.log(err);
+						                    throw err;
+				               			}
+
+				               			var server = ioServer.listen(document.Port);
+										console.log('userIDPort' + document.Port);
+
+										server.on("connection", (socket) => {
+										    console.log(`Client connected [id=${socket.id}]`);
+
+										    var newPortNum;
+					               			db.get('userIDPort').find({}, {sort: {Port : -1}, limit : 1}, function(err, portInfo) {
+		             							newPortNum = (parseInt(portInfo[0]["Port"], 10) + 1).toString();
+		             							
+		             							// Update database with new port number for user
+								  				db.get('userIDPort').update({"UserID": result.UserID}, {$set : {"Port" : newPortNum}}, function(err) {
+								  					message["UserPortNum"] = newPortNum;
+								  					socket.emit("msg", message);
+								  					console.log("NEW RECEIVER PORT: " + newPortNum);
+								  				});
+
+		             						});
+
+										    socket.on("disconnect", () => {
+										        console.log(`Client gone [id=${socket.id}]`);
+											});
+										});
+
+									});
+					    	 	}
+
+							});
+
+				    	});
+
+				    });
 
 			    	killPorts();
 			        removeUserDetails();
