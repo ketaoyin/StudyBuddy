@@ -6,6 +6,6 @@ Requirements:
 - Express
 
 To Run:
-"npm start" in StudyBuddy/server/
-"mongod -dbpath data" in StudyBuddy/server/
+- "npm start" in StudyBuddy/server/
+- "mongod -dbpath data" in StudyBuddy/server/
 
