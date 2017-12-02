@@ -249,7 +249,7 @@ router.post('/respondToPairReq', function(req, res, next) {
 			console.log("Chat port in use?: " + inUse)
 
 			if(!inUse) {
-				cp.fork('../simple-nodejs-chat' + '/server.js', args);
+				cp.fork('../chatServer' + '/server.js', args);
 			}
 		});
 
