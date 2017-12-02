@@ -89,7 +89,6 @@ router.post('/exitGroup', function(req, res, next) {
 			    		}
 			    	}
 
-
 			    	// Update groupID's of all members
 			    	console.log("New group leader is " + newLeader.UserID);
 			    	data.forEach(function (result) {
@@ -317,7 +316,7 @@ router.post('/exitGroup', function(req, res, next) {
 		    	}
 		    	// Unexpected behavior
 		    	else {
-		    		console.log("ERROR: WTF?! Group did not change properly.");
+		    		console.log("ERROR: Group did not change properly.");
 		    	}
    			});
 
